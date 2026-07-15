@@ -1,0 +1,30 @@
+export {
+  createLogger,
+  childLogger,
+  type Logger,
+  type BaseLogContext,
+  type SessionLogContext,
+} from "./logger.js";
+export { initTelemetry, type TelemetryHandle } from "./otel.js";
+export {
+  RESOURCE,
+  SCOPE,
+  SpanNames,
+  MetricNames,
+  MetricInstruments,
+  SpanAttrs,
+  toolSpanName,
+  getTracer,
+  startSpan,
+  withSpan,
+  contextWithSpan,
+  endSpanWithError,
+  recordTokenUsage,
+  recordModelRequestDuration,
+  recordSessionActive,
+  recordSandboxRunning,
+  recordJobRun,
+  recordWebhookDelivery,
+  type TokenUsage,
+  type Outcome,
+} from "./conventions.js";

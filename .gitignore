@@ -1,0 +1,34 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+*.tsbuildinfo
+
+# test / coverage
+coverage/
+.vitest/
+
+# local object-store root (dev/test runtime artifacts)
+data/
+packages/*/data/
+
+# environment & secrets
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# editor / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+
+# pnpm
+.pnpm-store/

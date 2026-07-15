@@ -1,0 +1,29 @@
+{
+  "name": "@pi-managed/client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pi client extension bridging a local Pi to the Pi Managed Backend (spec §24).",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@pi-managed/contracts": "workspace:*",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.80.6",
+    "typebox": "^1.1.38"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "@pi-managed/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Wire types + zod schemas. THE synchronization artifact — mirrors docs/api-reference.md.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  }
+}

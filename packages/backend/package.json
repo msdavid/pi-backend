@@ -1,0 +1,49 @@
+{
+  "name": "@pi-managed/backend",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pi Managed Backend service — control plane for managed Pi agent sessions.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:gate": "vitest run test/phase1-gate/",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1085.0",
+    "@earendil-works/pi-coding-agent": "^0.80.6",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.205.0",
+    "@opentelemetry/sdk-node": "^0.205.0",
+    "@pi-managed/contracts": "workspace:*",
+    "argon2": "^0.41.1",
+    "fastify": "^5.6.1",
+    "microsandbox": "^0.6.6",
+    "node-pg-migrate": "^7.9.1",
+    "pg": "^8.13.1",
+    "pino": "^10.1.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@pi-managed/testkit": "workspace:*",
+    "@testcontainers/minio": "^10.28.0",
+    "@testcontainers/postgresql": "^10.18.1",
+    "@types/pg": "^8.11.10",
+    "typebox": "^1.1.38"
+  },
+  "optionalDependencies": {
+    "@superradcompany/microsandbox-linux-x64-gnu": "0.6.6"
+  }
+}

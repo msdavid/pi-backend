@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pi Managed Console (read-only v1)</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="badge-readonly">READ-ONLY v1</span>
+        <h1>Pi Managed Console</h1>
+      </div>
+      <p class="tagline">
+        Browse sessions, trace events, and inspect token usage. No mutating
+        actions.
+      </p>
+    </header>
+
+    <section class="authbar" id="authbar">
+      <label>API base URL
+        <input id="baseUrl" type="text" placeholder="http://localhost:3000" />
+      </label>
+      <label>API key
+        <input id="apiKey" type="password" placeholder="pmb_live_…" autocomplete="off" />
+      </label>
+      <button id="connectBtn" type="button">Connect</button>
+      <button id="clearBtn" type="button" class="ghost">Forget key</button>
+      <p class="warn">
+        The key is stored in your browser's localStorage and sent as
+        <code>Authorization: Bearer &lt;key&gt;</code> on every request. This is a
+        read-only console — do not reuse a production key, and clear it when done.
+      </p>
+    </section>
+
+    <main id="app">
+      <!-- Session list view -->
+      <section id="listView">
+        <div class="toolbar">
+          <label>Status
+            <select id="statusFilter">
+              <option value="">(all)</option>
+              <option value="idle">idle</option>
+              <option value="running">running</option>
+              <option value="rescheduling">rescheduling</option>
+              <option value="terminated">terminated</option>
+            </select>
+          </label>
+          <button id="refreshBtn" type="button">Refresh</button>
+          <button id="nextBtn" type="button" class="ghost" disabled>Next page →</button>
+        </div>
+        <p id="listError" class="error" hidden></p>
+        <table class="sessions">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Title</th>
+              <th>Status</th>
+              <th>Agent</th>
+              <th>Environment</th>
+              <th>Created</th>
+              <th>Tokens (in/out)</th>
+            </tr>
+          </thead>
+          <tbody id="sessionsBody">
+            <tr><td colspan="7" class="muted">Not connected.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Session detail / tracing view -->
+      <section id="detailView" hidden>
+        <button id="backBtn" type="button" class="ghost">← Back to list</button>
+        <h2 id="detailTitle"></h2>
+        <dl class="meta" id="detailMeta"></dl>
+
+        <div class="panels">
+          <div class="panel usage">
+            <h3>Usage</h3>
+            <p id="usageError" class="error" hidden></p>
+            <table id="usageTable"></table>
+          </div>
+        </div>
+
+        <div class="panel trace">
+          <h3>Tracing — events (chronological)</h3>
+          <p id="entriesError" class="error" hidden></p>
+          <ol id="entriesList" class="entries"></ol>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <small
+        >Pi Managed Backend · web-console v1 · read-only · spec §26.6</small
+      >
+    </footer>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

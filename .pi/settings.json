@@ -1,0 +1,32 @@
+{
+  "defaultThinkingLevel": "high",
+  "showHardwareCursor": true,
+  "steeringMode": "one-at-a-time",
+  "transport": "auto",
+  "hideThinkingBlock": true,
+  "collapseChangelog": true,
+  "treeFilterMode": "all",
+  "packages": [
+    "npm:@tintinweb/pi-subagents",
+    "npm:pi-web-access",
+    "npm:pi-agent-browser-native",
+    "npm:pi-bash-live-view",
+    "npm:@robhowley/pi-openrouter",
+    "npm:@juicesharp/rpiv-todo",
+    "npm:pi-goal",
+    "npm:@trevonistrevon/pi-loop",
+    "npm:@juicesharp/rpiv-ask-user-question",
+    "npm:@mrclrchtr/supi-prompt-suggestions",
+    "npm:pi-btw",
+    {
+      "source": "npm:pi-pledit",
+      "extensions": [
+        "-index.ts"
+      ]
+    },
+    "npm:pi-rewind",
+    "npm:pi-code-review",
+    "npm:pi-cc-status",
+    "npm:@yeliu84/pi-model-router"
+  ]
+}

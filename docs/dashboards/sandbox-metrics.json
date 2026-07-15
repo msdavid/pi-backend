@@ -1,0 +1,178 @@
+{
+  "title": "Pi Managed — Sandbox Metrics (NO DATA: series not emitted yet)",
+  "uid": "pi-sandbox-metrics",
+  "schemaVersion": 39,
+  "version": 2,
+  "tags": ["pi-managed", "sandboxes", "no-data", "pending-exporter"],
+  "description": "TARGET dashboard, not a live one. Every panel here queries a pi.sandbox.* / pi.sandboxes.* series, and NOTHING IN THE BACKEND EMITS THOSE SERIES TODAY: the names are reserved in infra/telemetry/conventions.ts, but no observable gauge is registered and no OTLP metric exporter is wired (there is no 'msb-metrics' sidecar — it never existed). Expect every panel to be empty. For live per-VM CPU/memory/disk/net/uptime right now, call GET /v1/sessions/:id/metrics (docs/api-reference.md), which pulls the sample straight from the microsandbox SDK. See docs/observability.md §3 for the two steps that will make this dashboard light up.",
+  "timezone": "browser",
+  "time": { "from": "now-1h", "to": "now" },
+  "refresh": "15s",
+  "templating": {
+    "list": [
+      {
+        "name": "DS",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": { "text": "Prometheus", "value": "Prometheus" },
+        "hide": 0,
+        "label": "Datasource"
+      },
+      {
+        "name": "session",
+        "type": "query",
+        "datasource": { "uid": "${DS}" },
+        "query": "label_values(pi_sandbox_cpu, session_id)",
+        "current": { "text": "All", "value": "$__all" },
+        "includeAll": true,
+        "multi": true,
+        "hide": 0,
+        "label": "Session"
+      },
+      {
+        "name": "sandbox",
+        "type": "query",
+        "datasource": { "uid": "${DS}" },
+        "query": "label_values(pi_sandbox_cpu{session_id=~\"$session\"}, sandbox_id)",
+        "current": { "text": "All", "value": "$__all" },
+        "includeAll": true,
+        "multi": true,
+        "hide": 0,
+        "label": "Sandbox"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 100,
+      "type": "text",
+      "title": "⚠ THIS DASHBOARD SHOWS NO DATA (by design)",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 5 },
+      "options": {
+        "mode": "markdown",
+        "content": "**Every panel below is empty, and that does not mean your sandboxes are idle.**\n\nThe `pi.sandbox.*` / `pi.sandboxes.*` series these panels query are **not emitted by anything**. The names are reserved in `infra/telemetry/conventions.ts`, but no instrument records them and no metric exporter is wired. The `msb-metrics` sidecar that earlier docs described **does not exist** — the pinned `microsandbox@0.6.6` SDK exposes metrics as an on-demand pull, not an OTLP push.\n\n**To see a VM's resource usage today:** `GET /v1/sessions/:id/metrics` — CPU, memory, disk I/O, network I/O, uptime, pulled live from the running microVM. See `docs/api-reference.md`.\n\n**To make this dashboard work:** register a `MeterProvider` + OTLP metric exporter in `initTelemetry`, then register observable gauges that sample `SandboxProvider.metrics` per running VM (tagged `sandbox.id` + `session.id`). Steps are spelled out in `docs/observability.md` §3. The panel queries below are already the right ones — they need a producer, not a rewrite."
+      }
+    },
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Running sandboxes [NO DATA — pi.sandboxes.running is not emitted]",
+      "description": "Reserved series: nothing records pi.sandboxes.running yet (docs/observability.md §3).",
+      "gridPos": { "x": 0, "y": 5, "w": 8, "h": 4 },
+      "datasource": { "uid": "${DS}" },
+      "targets": [{ "refId": "A", "expr": "sum(pi_sandboxes_running)" }],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "noValue": "NO DATA — series not emitted" }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "VM uptime (s) [NO DATA — pi.sandbox.uptime is not emitted]",
+      "description": "Reserved series. Live value: GET /v1/sessions/:id/metrics → uptimeMs.",
+      "gridPos": { "x": 8, "y": 5, "w": 8, "h": 4 },
+      "datasource": { "uid": "${DS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (sandbox_id) (pi_sandbox_uptime{session_id=~\"$session\",sandbox_id=~\"$sandbox\"})"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s", "noValue": "NO DATA — series not emitted" }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Peak CPU [NO DATA — pi.sandbox.cpu is not emitted]",
+      "description": "Reserved series. Live value: GET /v1/sessions/:id/metrics → cpuPercent (percent of one core).",
+      "gridPos": { "x": 16, "y": 5, "w": 8, "h": 4 },
+      "datasource": { "uid": "${DS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (sandbox_id) (pi_sandbox_cpu{session_id=~\"$session\",sandbox_id=~\"$sandbox\"})"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "noValue": "NO DATA — series not emitted" }
+      },
+      "options": { "reduceOptions": { "calcs": ["max"] } }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "CPU usage [NO DATA — pi.sandbox.cpu is not emitted]",
+      "description": "Reserved series. Live value: GET /v1/sessions/:id/metrics → cpuPercent.",
+      "gridPos": { "x": 0, "y": 9, "w": 12, "h": 8 },
+      "datasource": { "uid": "${DS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "pi_sandbox_cpu{session_id=~\"$session\",sandbox_id=~\"$sandbox\"}",
+          "legendFormat": "{{sandbox_id}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "noValue": "NO DATA — series not emitted" }
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Memory RSS [NO DATA — pi.sandbox.mem is not emitted]",
+      "description": "Reserved series. Live value: GET /v1/sessions/:id/metrics → memoryBytes / memoryLimitBytes.",
+      "gridPos": { "x": 12, "y": 9, "w": 12, "h": 8 },
+      "datasource": { "uid": "${DS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "pi_sandbox_mem{session_id=~\"$session\",sandbox_id=~\"$sandbox\"}",
+          "legendFormat": "{{sandbox_id}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "bytes", "noValue": "NO DATA — series not emitted" }
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Disk I/O [NO DATA — pi.sandbox.disk_io is not emitted]",
+      "description": "Reserved series. Live value: GET /v1/sessions/:id/metrics → diskReadBytes / diskWriteBytes (cumulative; difference two samples for a rate).",
+      "gridPos": { "x": 0, "y": 17, "w": 12, "h": 8 },
+      "datasource": { "uid": "${DS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(pi_sandbox_disk_io{session_id=~\"$session\",sandbox_id=~\"$sandbox\"}[1m])",
+          "legendFormat": "{{sandbox_id}} {{direction}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "Bps", "noValue": "NO DATA — series not emitted" }
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Network I/O [NO DATA — pi.sandbox.net_io is not emitted]",
+      "description": "Reserved series. Live value: GET /v1/sessions/:id/metrics → netRxBytes / netTxBytes (cumulative; difference two samples for a rate).",
+      "gridPos": { "x": 12, "y": 17, "w": 12, "h": 8 },
+      "datasource": { "uid": "${DS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(pi_sandbox_net_io{session_id=~\"$session\",sandbox_id=~\"$sandbox\"}[1m])",
+          "legendFormat": "{{sandbox_id}} {{direction}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "Bps", "noValue": "NO DATA — series not emitted" }
+      }
+    }
+  ]
+}

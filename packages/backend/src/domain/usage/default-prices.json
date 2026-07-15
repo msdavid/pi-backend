@@ -1,0 +1,26 @@
+{
+  "unknown-model": {
+    "inputPerToken": 0.000003,
+    "outputPerToken": 0.000015,
+    "cacheCreationPerToken": 0.00000375,
+    "cacheReadPerToken": 0.0000003
+  },
+  "anthropic/claude-sonnet-4": {
+    "inputPerToken": 0.000003,
+    "outputPerToken": 0.000015,
+    "cacheCreationPerToken": 0.00000375,
+    "cacheReadPerToken": 0.0000003
+  },
+  "openai/gpt-4o": {
+    "inputPerToken": 0.0000025,
+    "outputPerToken": 0.00001,
+    "cacheCreationPerToken": 0.0000025,
+    "cacheReadPerToken": 0.00000125
+  },
+  "google/gemini-1.5-pro": {
+    "inputPerToken": 0.00000125,
+    "outputPerToken": 0.000005,
+    "cacheCreationPerToken": 0.00000313,
+    "cacheReadPerToken": 0.00000031
+  }
+}

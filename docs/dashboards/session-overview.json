@@ -1,0 +1,193 @@
+{
+  "title": "Pi Managed — Session Overview",
+  "uid": "pi-session-overview",
+  "schemaVersion": 39,
+  "version": 1,
+  "tags": ["pi-managed", "sessions"],
+  "timezone": "browser",
+  "time": { "from": "now-6h", "to": "now" },
+  "refresh": "30s",
+  "templating": {
+    "list": [
+      {
+        "name": "DS",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": { "text": "Prometheus", "value": "Prometheus" },
+        "hide": 0,
+        "label": "Datasource"
+      },
+      {
+        "name": "tenant",
+        "type": "query",
+        "datasource": { "uid": "${DS}" },
+        "query": "label_values(pi_tokens_input, tenant_id)",
+        "current": { "text": "All", "value": "$__all" },
+        "includeAll": true,
+        "multi": true,
+        "hide": 0,
+        "label": "Tenant"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Active sessions",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "uid": "${DS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(pi_sessions_active{tenant_id=~\"$tenant\"})"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [] } }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto" }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Cost (USD, last interval)",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "uid": "${DS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(pi_cost_usd{tenant_id=~\"$tenant\"}[5m]))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "currencyUSD" }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Input tokens (5m)",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "uid": "${DS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(pi_tokens_input{tenant_id=~\"$tenant\"}[5m]))"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Output tokens (5m)",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "uid": "${DS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(pi_tokens_output{tenant_id=~\"$tenant\"}[5m]))"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Tokens in / out per model",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "datasource": { "uid": "${DS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (pi_model_name) (rate(pi_tokens_input{tenant_id=~\"$tenant\"}[1m]))",
+          "legendFormat": "in: {{pi_model_name}}"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (pi_model_name) (rate(pi_tokens_output{tenant_id=~\"$tenant\"}[1m]))",
+          "legendFormat": "out: {{pi_model_name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "lineInterpolation": "linear" } }
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Cost (USD/s) per model",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "datasource": { "uid": "${DS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (pi_model_name) (rate(pi_cost_usd{tenant_id=~\"$tenant\"}[1m]))",
+          "legendFormat": "{{pi_model_name}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "currencyUSD" } }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Active sessions over time",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "datasource": { "uid": "${DS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (tenant_id) (pi_sessions_active{tenant_id=~\"$tenant\"})",
+          "legendFormat": "{{tenant_id}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Model request latency (p95)",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "datasource": { "uid": "${DS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, pi_model_name) (rate(pi_model_request_duration_bucket{tenant_id=~\"$tenant\"}[5m])))",
+          "legendFormat": "p95: {{pi_model_name}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ms" } }
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "Session errors (5m) — NO DATA YET",
+      "description": "Queries pi_session_errors_total, which nothing emits yet: session.error exists only as an SSE event, not an OTEL metric (docs/observability.md §5). Kept as the target query for when a pi.session.errors counter is added.",
+      "gridPos": { "x": 0, "y": 20, "w": 6, "h": 4 },
+      "datasource": { "uid": "${DS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(pi_session_errors_total{tenant_id=~\"$tenant\"}[5m]))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": null, "color": "green" },
+              { "value": 1, "color": "red" }
+            ]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    }
+  ]
+}

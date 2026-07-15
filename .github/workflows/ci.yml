@@ -1,0 +1,141 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+# Fail-closed gates (R1.2)
+# ------------------------
+# The integration-capable jobs export `PI_REQUIRE_INTEGRATION`. It is read by
+# `packages/backend/src/infra/db/__tests__/test-runtime.ts` (container runtime) and
+# `packages/backend/src/infra/sandbox/__tests__/kvm-gate.ts` (/dev/kvm + msb runtime):
+# when a capability it demands is missing, the suites that need it HARD FAIL with an
+# error naming them — they never silently skip. Locally the variable is unset, so a
+# laptop without podman/KVM still gets a green `pnpm test`, but with a loud
+# `[integration-gate] SKIPPING …` banner on stderr.
+#   PI_REQUIRE_INTEGRATION=containers  → container runtime required
+#   PI_REQUIRE_INTEGRATION=1           → container runtime AND /dev/kvm required
+
+jobs:
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+
+  # Everything except the @kvm suites. GitHub-hosted runners have no /dev/kvm, but they
+  # DO ship a running docker daemon — which is what the Postgres integration suites need:
+  # they start their own `postgres:16-alpine` via testcontainers, so a `services: postgres`
+  # sidecar would be the wrong lever (testcontainers owns the container lifecycle and a
+  # random port per suite). We assert the daemon is up, then demand it via
+  # PI_REQUIRE_INTEGRATION=containers — a runner that loses docker turns the build RED
+  # instead of silently skipping every DB-backed suite.
+  test:
+    name: Test (containers required)
+    runs-on: ubuntu-latest
+    env:
+      PI_REQUIRE_INTEGRATION: containers
+      # testcontainers talks to the runner's rootful docker socket.
+      DOCKER_HOST: unix:///var/run/docker.sock
+      TESTCONTAINERS_RYUK_DISABLED: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - name: Verify container runtime (fail-closed prerequisite)
+        run: docker info
+      - name: Pre-pull test images
+        run: docker pull postgres:16-alpine
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+
+  # @kvm tests: the real microsandbox provider, the sandbox-operations adapter, the
+  # composed-app E2E, and the GATE-1 host-escape / credential-injection / load gates.
+  # They boot real microVMs, so they need hardware virtualization — which GitHub-hosted
+  # runners do not have (no /dev/kvm). This job therefore targets a SELF-HOSTED runner.
+  #
+  # Required runner setup (infra, provisioned outside this repo):
+  #   * Labels: `self-hosted`, `linux`, `kvm`. The `kvm` label is what selects the runner
+  #     below; with no such runner registered the job QUEUES (and the required check never
+  #     goes green) rather than passing vacuously — that is the intended fail-closed shape.
+  #   * Linux host — bare metal, or a VM with NESTED VIRTUALIZATION enabled — exposing
+  #     /dev/kvm, with the runner's user in the `kvm` group (/dev/kvm must be writable).
+  #   * Node.js >= 20 + pnpm on PATH; a container runtime (docker or podman) for the
+  #     Postgres-backed halves of the E2E and credential-injection gates.
+  #   * microsandbox one-time bootstrap:
+  #       node -e "import('microsandbox').then(m => m.install())"
+  #     which populates ~/.microsandbox (libkrunfw kernel + agentd). The bootstrap step
+  #     below re-runs it per job (idempotent), so a fresh runner self-heals; it needs
+  #     network egress to the msb release CDN.
+  #   * The platform native package `@superradcompany/microsandbox-linux-x64-gnu` must
+  #     actually install — it is an optionalDependency, and `pnpm install` skips optional
+  #     deps silently on a mismatched platform. The verify step below catches that.
+  # Long-form runbook: docs/deploy.md §9 (CI: fail-closed gates).
+  kvm:
+    name: KVM tests (@kvm, self-hosted)
+    runs-on: [self-hosted, linux, kvm]
+    env:
+      # Both capabilities are mandatory here: a missing /dev/kvm OR a missing container
+      # runtime fails the run, naming the suites it could not execute.
+      PI_REQUIRE_INTEGRATION: "1"
+      TESTCONTAINERS_RYUK_DISABLED: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - name: Verify /dev/kvm
+        run: |
+          test -e /dev/kvm || { echo "::error::/dev/kvm missing — this runner is not KVM-capable"; exit 1; }
+          test -w /dev/kvm || { echo "::error::/dev/kvm not writable by the runner user (add it to the 'kvm' group)"; exit 1; }
+          ls -l /dev/kvm
+      - run: pnpm install --frozen-lockfile
+      - name: Verify msb native package installed
+        run: ls node_modules/@superradcompany/
+      - name: Bootstrap microsandbox runtime (idempotent)
+        run: node -e "import('microsandbox').then(m => m.install())"
+      - name: Verify container runtime (Postgres-backed gates)
+        run: docker info || podman info
+      # The @kvm suites, by path. Keep in sync with the `@kvm`-tagged files:
+      #   src/infra/sandbox/__tests__           — real MicrosandboxProvider + contract parity
+      #   src/domain/session-manager/operations — remote-operations adapter inside a real VM
+      #   test/e2e.test.ts                      — composed app: real microVM + Postgres
+      #   test/phase1-gate                      — host-escape, credential-injection, load, restart
+      - name: Run @kvm suites
+        run: |
+          pnpm --filter @pi-managed/backend exec vitest run \
+            src/infra/sandbox/__tests__ \
+            src/domain/session-manager/operations/__tests__ \
+            test/e2e.test.ts \
+            test/phase1-gate

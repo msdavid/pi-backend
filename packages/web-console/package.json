@@ -1,0 +1,16 @@
+{
+  "name": "@pi-managed/web-console",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pi Managed Backend — read-only web console (v1). A dependency-free static SPA for browsing sessions, tracing events, and viewing token usage.",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "vitest run",
+    "serve": "node scripts/serve.mjs"
+  },
+  "devDependencies": {}
+}

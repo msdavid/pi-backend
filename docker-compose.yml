@@ -1,0 +1,57 @@
+# Dev environment for the Pi Managed Backend (WP-1.13).
+#
+# Provides the two stateful dependencies the backend composes at boot:
+#   - postgres:16  — the control-plane DB (migrations run on boot via runMigrations)
+#   - minio        — an S3-compatible object store (for the S3 object-store impl)
+#
+# The backend itself runs on the host (`pnpm --filter backend dev` / `dist/main.js`)
+# and points at these via env vars (see docs/deploy.md). KVM/libkrunfw for the
+# microsandbox runtime is NOT provided here — it requires a Linux host with /dev/kvm
+# (see docs/deploy.md §KVM requirement).
+#
+# Usage:
+#   docker compose up -d
+#   DB_URL=postgres://pi:pi@localhost:5432/pi \
+#   OBJECT_STORE_ROOT=./data/objectstore \
+#   SANDBOX_RUNTIME=enabled \
+#   pnpm --filter backend dev
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pi-backend-postgres
+    environment:
+      POSTGRES_USER: pi
+      POSTGRES_PASSWORD: pi
+      POSTGRES_DB: pi
+    ports:
+      - "5432:5432"
+    volumes:
+      - pi-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pi -d pi"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    container_name: pi-backend-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: pi
+      MINIO_ROOT_PASSWORD: pi-minio-dev
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # web console
+    volumes:
+      - pi-minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pi-postgres-data:
+  pi-minio-data:
