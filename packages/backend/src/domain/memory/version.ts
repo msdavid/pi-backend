@@ -197,7 +197,7 @@ export async function redactVersion(
     }
   }
   // Scrub the content object (best-effort). `hardDelete` (not `delete`) so that
-  // on a versioned store (S3/SaaS) every prior version is purged — a plain
+  // on a versioned store (S3/GCS on SaaS) every prior version is purged — a plain
   // delete would only write a delete marker, leaving the plaintext retrievable
   // by VersionId (§13.6).
   try {

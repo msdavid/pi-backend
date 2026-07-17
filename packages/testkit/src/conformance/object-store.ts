@@ -2,7 +2,8 @@
  * Conformance test kit for the `ObjectStore` port (WP-5.1, spec §28).
  *
  * A published vitest suite any `ObjectStore` implementation — the testkit
- * `FakeObjectStore` (reference), `FilesystemObjectStore`, `S3ObjectStore`, or a
+ * `FakeObjectStore` (reference), `FilesystemObjectStore`, `S3ObjectStore`,
+ * `GCSObjectStore`, or a
  * third-party plugin — runs to prove it satisfies the contract documented on the
  * `ObjectStore` interface in `@pi-managed/backend` (`domain/ports.ts`).
  *
@@ -71,7 +72,7 @@ async function readAll(
 /**
  * Run the `ObjectStore` contract suite against a single impl. `make` returns the
  * fixture, or `null` if the impl cannot be provisioned in this environment (e.g. no
- * Docker for an S3 testcontainer) — the suite then skips with a warning.
+ * Docker for an S3/GCS testcontainer) — the suite then skips with a warning.
  */
 export function runObjectStoreConformance(
   name: string,

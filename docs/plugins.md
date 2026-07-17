@@ -13,7 +13,7 @@
 | --- | --- | --- |
 | `SandboxProvider` | `MicrosandboxProvider` (when `SANDBOX_RUNTIME=enabled`) | `registerSandboxProvider` |
 | `SecretStore` | `createVaultSecretStore` (Postgres vault) | `registerSecretStore` |
-| `ObjectStore` | `FilesystemObjectStore` / S3 (config-derived) | `registerObjectStore` |
+| `ObjectStore` | `FilesystemObjectStore` / S3 / GCS (config-derived) | `registerObjectStore` |
 | `Scheduler` | `CronScheduler` | `registerScheduler` _(reserved — registration accepted but not yet consulted by the composition root)_ |
 | `ToolRegistry` | _(reserved — no port in `ports.ts` yet)_ | `registerToolRegistry` |
 

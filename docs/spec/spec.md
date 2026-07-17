@@ -452,7 +452,7 @@ the start so neither shape is a retrofit.
   performance tax vs bare metal.
 - **Runtime:** Node 20+.
 - **Dependencies:** Postgres (metadata, quotas, job records, webhook deliveries), an
-  object store (filesystem in v1; S3-compatible for SaaS), the microsandbox runtime
+  object store (filesystem in v1; S3-compatible or GCS for SaaS), the microsandbox runtime
   (`~/.microsandbox/` with libkrunfw + agentd).
 - **Packaging:** a single distributable (npm package or Docker image) containing the
   backend + the managed-feature Pi extensions. `pi` itself is a dependency, not bundled.

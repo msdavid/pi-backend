@@ -6,7 +6,7 @@
  * which exposes no `probe()`) are assumed healthy so tests aren't falsely marked down.
  *
  * Kept in its own module (type-only imports) so `server.ts` can wire the probe
- * without pulling the S3 SDK into the server's import graph.
+ * without pulling the S3/GCS SDKs into the server's import graph.
  */
 
 import type { ReadinessCheck } from "../../api/health.js";
@@ -17,7 +17,7 @@ interface Probeable {
   probe(): Promise<{ status: "up" | "down"; detail?: string }>;
 }
 
-/** `true` when `store` exposes a `probe()` method (fs + s3 impls do). */
+/** `true` when `store` exposes a `probe()` method (fs, s3, and gcs impls do). */
 function isProbeable(store: ObjectStore): store is ObjectStore & Probeable {
   return (
     typeof (store as unknown as Partial<Probeable>).probe === "function"

@@ -236,7 +236,7 @@ has a bug. (Expanded in the linked sections; wire shapes in
 | **Browser** | The web console SPA | `GET /console` assets + read-only `/v1` calls |
 
 State: **Postgres 16** (control plane; migrations run forward-only on boot), the
-**object store** (local filesystem by default, any S3-compatible store; JSONL, files,
+**object store** (local filesystem by default, any S3-compatible store or GCS bucket; JSONL, files,
 memory, skills, snapshots), and **local disk** (`PI_SESSION_LOCAL_DIR`, the per-session
 JSONL write path — deliberately durable, not `/tmp`).
 
@@ -263,7 +263,7 @@ work-item shape exists in two places that must be kept in sync by hand.
 2. **Multi-host sandbox pool:** `SANDBOX_MODE=multi` — Postgres-registered KVM hosts,
    least-loaded placement, per-host token + mTLS, liveness probing
    ([multi-host design](spec/multi-host-design.md)).
-3. **Multi-tenant SaaS:** onboarding enabled, S3 object store, per-tenant quotas/plans,
+3. **Multi-tenant SaaS:** onboarding enabled, S3 or GCS object store, per-tenant quotas/plans,
    billing sink webhooks.
 
 Config is env-var driven (env > config file > defaults), validated at boot, fatal on
@@ -312,7 +312,7 @@ third-party implementations: [`plugins.md`](plugins.md).
 | `SessionRuntime` | the harness: wake/sendEvent/subscribe/interrupt/getEntries/status | `ManagedSessionRuntime` (or `RemoteSessionRuntime` proxy in pool mode) |
 | `SecretStore` | resolve a session's credentials **as opaque bindings only** | Postgres vault |
 | `ProviderKeyResolver` | the sole port returning a raw credential: the tenant's model keys, host-side, fail-closed | vault-backed |
-| `ObjectStore` | streaming put/get, etag-conditional put, versioning | filesystem / S3 |
+| `ObjectStore` | streaming put/get, etag-conditional put, versioning | filesystem / S3 / GCS |
 | `UsageRecorder` | token/cost recording, budget checks, tenant rollups | Postgres |
 | `Clock` / `Scheduler` | injectable time + cron tick (deterministic DST tests) | wall clock / `CronScheduler` |
 | `WebhookSink` | enqueue a thin lifecycle event | persisted dispatcher queue |

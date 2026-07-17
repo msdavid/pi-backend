@@ -92,12 +92,15 @@ export {
   type RunMigrationsOptions,
 } from "./infra/db/index.js";
 
-// P0.3 Object store: filesystem (v1 default) + S3-compatible impls, factory, readiness.
+// P0.3 Object store: filesystem (v1 default) + S3-compatible + GCS impls, factory, readiness.
 export {
   FilesystemObjectStore,
   S3ObjectStore,
   createS3ObjectStore,
   ensureS3Bucket,
+  GCSObjectStore,
+  createGCSObjectStore,
+  ensureGCSBucket,
   createObjectStore,
   objectStoreFromConfig,
   createObjectStoreReadinessCheck,
@@ -106,6 +109,8 @@ export {
   type ObjectStoreProbeResult,
   type S3ObjectStoreOptions,
   type S3Credentials,
+  type GCSObjectStoreOptions,
+  type GCSCredentials,
 } from "./infra/objectstore/index.js";
 
 // P0.4 Tenants, API keys (argon2id-hashed, shown once), and bearer auth.

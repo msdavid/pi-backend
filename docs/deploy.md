@@ -12,7 +12,7 @@ runtime** — plus a Linux host with **KVM** for microVM isolation.
 | **Linux host with `/dev/kvm`** | microsandbox microVMs run via libkrunfw + KVM | The sandbox provider is inert without it. `@kvm`-gated tests skip cleanly when absent. |
 | **Node.js ≥ 20** | ESM service, `dist/main.js` entrypoint | Build with `pnpm --filter backend build`. |
 | **Postgres 16** | Control-plane DB (sessions, agents, environments, vaults, usage, …) | Migrations run **forward-only on boot** (`runMigrations(dbUrl, "up")`). |
-| **Object store** | File payloads, memory stores, snapshots, JSONL sync (§28) | v1 default: local filesystem. SaaS: any S3-compatible store (e.g. MinIO). |
+| **Object store** | File payloads, memory stores, snapshots, JSONL sync (§28) | v1 default: local filesystem. SaaS: any S3-compatible store (e.g. MinIO) or Google Cloud Storage. |
 | **microsandbox runtime** | Provisiones/execs detached microVMs (§5.4, §10) | One-time `microsandbox` install bootstrap (§3 below). |
 
 ## 2. Configuration
@@ -145,7 +145,7 @@ drain + close the Postgres pool. The process exits `0` once clean, `1` on error.
 Single-tenant self-hosted (v1): one implicit tenant, one Node process, one
 Postgres, one object store, one `~/.microsandbox/` home. The tenant context
 still flows through every request, so promoting to multi-tenant SaaS is a
-config change (per-tenant keys + S3 object store), not a rewrite.
+config change (per-tenant keys + S3/GCS object store), not a rewrite.
 
 ## 9. CI: fail-closed gates (R1.2)
 

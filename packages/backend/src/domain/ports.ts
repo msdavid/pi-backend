@@ -518,8 +518,8 @@ export interface PutResult {
 
 /**
  * Streaming object store for files, memory-store contents, snapshots, and JSONL sync
- * (§28, §21, §13). Implementations: local filesystem (v1 default, §7.3) and
- * S3-compatible (SaaS). Keys per `docs/db-schema.md` layout.
+ * (§28, §21, §13). Implementations: local filesystem (v1 default, §7.3), S3-compatible,
+ * and Google Cloud Storage (SaaS). Keys per `docs/db-schema.md` layout.
  */
 export interface ObjectStore {
   /** Whether the backend supports object versioning (§28 backup note). */

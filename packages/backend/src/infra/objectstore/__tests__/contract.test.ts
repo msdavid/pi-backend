@@ -5,7 +5,8 @@
  *  - the testkit `FakeObjectStore` (the reference behavior),
  *  - `FilesystemObjectStore` (in a tmp dir),
  *  - `S3ObjectStore` against a MinIO testcontainer (skipped when Docker/MinIO
- *    is unavailable — a clear note is logged).
+ *    is unavailable — a clear note is logged),
+ *  - `GCSObjectStore` against a fake-gcs-server testcontainer (same skip rule).
  *
  * The same assertions run against each: put→get round-trip, conditionalPut
  * precondition semantics, list with prefix, delete, large streaming content, and
@@ -24,6 +25,11 @@ import {
   ensureS3Bucket,
   type S3ObjectStoreOptions,
 } from "../s3.js";
+import {
+  createGCSObjectStore,
+  ensureGCSBucket,
+  type GCSObjectStoreOptions,
+} from "../gcs.js";
 import { FakeObjectStore } from "@pi-managed/testkit";
 
 /** A freshly-constructed store plus its cleanup hook. */
@@ -135,6 +141,58 @@ async function s3Fixture(): Promise<StoreFixture | null> {
      
     console.warn(
       `[objectstore/contract] S3/MinIO unavailable — skipping S3 parity case: ` +
+        `${(err as Error).message}`,
+    );
+    return null;
+  }
+}
+
+/**
+ * Start a fake-gcs-server testcontainer and return a wired GCS store, or `null`
+ * if unavailable.
+ */
+async function gcsFixture(): Promise<StoreFixture | null> {
+  try {
+    const { GenericContainer } = await import("testcontainers");
+    const container = await new GenericContainer(
+      "fsouza/fake-gcs-server:1.54.0",
+    )
+      .withExposedPorts(4443)
+      .withCommand(["-scheme", "http"])
+      .start();
+    const endpoint = `http://${container.getHost()}:${container.getMappedPort(4443)}`;
+    // Point the server's advertised URLs (upload/media links) at the mapped port.
+    const cfg = await fetch(`${endpoint}/_internal/config`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ externalUrl: endpoint }),
+    });
+    if (!cfg.ok) {
+      throw new Error(`fake-gcs-server config update failed: ${cfg.status}`);
+    }
+
+    const bucket = `pi-test-${randomUUID().slice(0, 8)}`;
+    const baseOpts: GCSObjectStoreOptions = {
+      bucket,
+      apiEndpoint: endpoint,
+      projectId: "pi-test",
+    };
+    await ensureGCSBucket(baseOpts);
+    const store = await createGCSObjectStore(baseOpts);
+    return {
+      store,
+      cleanup: async () => {
+        try {
+          await container.stop();
+        } catch {
+          /* best-effort */
+        }
+      },
+    };
+  } catch (err) {
+
+    console.warn(
+      `[objectstore/contract] GCS/fake-gcs-server unavailable — skipping GCS parity case: ` +
         `${(err as Error).message}`,
     );
     return null;
@@ -365,3 +423,4 @@ function runContract(
 runContract("FakeObjectStore", fakeFixture);
 runContract("FilesystemObjectStore", fsFixture);
 runContract("S3ObjectStore (MinIO)", s3Fixture);
+runContract("GCSObjectStore (fake-gcs-server)", gcsFixture);

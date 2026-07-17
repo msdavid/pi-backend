@@ -127,7 +127,7 @@ and `credentialKey`/`mcpServerUrl` locators — none of which is a secret value.
   JSONL sync), `delete`, `hardDelete` (purge all versions, §13.6 redaction), `head`
   (single-object metadata, O(1), JSONL-sync etag recovery), `list` (async iterable),
   `readonly versioningSupported`.
-- **Consumers:** WP-P0.3 (impl: local fs + S3-compatible), WP-1.5 (JSONL sync), WP-1.12
+- **Consumers:** WP-P0.3 (impl: local fs + S3-compatible + GCS), WP-1.5 (JSONL sync), WP-1.12
   (files API), WP-2.2 (memory stores), WP-1.3 (snapshots).
 - **Fake:** `FakeObjectStore` — Map-backed, conditional put enforces etag match.
 
