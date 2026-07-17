@@ -4,6 +4,7 @@ A self-deployable service that gives the [Pi coding agent](https://github.com/ea
 
 The service is **tailored for Pi** — it adapts the *concepts* of managed agents (agents, sessions, environments, events, tools, memory, multi-agent orchestration, outcomes, scheduled deployments) to Pi-native idioms rather than mirroring any other API.
 
+- **Architecture:** [`docs/architecture.md`](docs/architecture.md) (layered overview — start here)
 - **API reference:** [`docs/api-reference.md`](docs/api-reference.md) (wire contract)
 - **Deployment:** [`docs/deploy.md`](docs/deploy.md) (full deploy guide)
 
@@ -138,6 +139,7 @@ packages/
   worker             # default self-hosted worker (§10.4)
   web-console        # read-only web UI (§26.6)
 docs/
+  architecture.md    # layered architecture overview
   api-reference.md   # the wire contract
   db-schema.md       # Postgres schema (generated — see `pnpm db:schema:gen`)
   deploy.md          # deployment guide
@@ -200,6 +202,7 @@ least-privilege, not `admin`.
 
 ## Documentation
 
+- [**Architecture**](docs/architecture.md) — layered overview: executive summary, the whole system at a glance, containers, backend internals, runtime views, cross-cutting concerns, decision log
 - [**Deploy guide**](docs/deploy.md) — prerequisites, config, boot, health, graceful shutdown, deployment shapes
 - [**API reference**](docs/api-reference.md) — every endpoint, request/response schema, error taxonomy, event catalog, SSE wire format
 - [**DB schema**](docs/db-schema.md) — every Postgres table, indexes, constraints, encrypted-column strategy
