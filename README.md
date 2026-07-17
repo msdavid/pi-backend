@@ -140,6 +140,7 @@ packages/
   web-console        # read-only web UI (§26.6)
 docs/
   architecture.md    # layered architecture overview
+  user-journeys.md   # persona journeys (platform admin / tenant admin / user)
   api-reference.md   # the wire contract
   db-schema.md       # Postgres schema (generated — see `pnpm db:schema:gen`)
   deploy.md          # deployment guide
@@ -203,6 +204,7 @@ least-privilege, not `admin`.
 ## Documentation
 
 - [**Architecture**](docs/architecture.md) — layered overview: executive summary, the whole system at a glance, containers, backend internals, runtime views, cross-cutting concerns, decision log
+- [**User journeys**](docs/user-journeys.md) — platform admin, tenant admin, and user (Pi coder) journeys end to end, plus machine actors
 - [**Deploy guide**](docs/deploy.md) — prerequisites, config, boot, health, graceful shutdown, deployment shapes
 - [**API reference**](docs/api-reference.md) — every endpoint, request/response schema, error taxonomy, event catalog, SSE wire format
 - [**DB schema**](docs/db-schema.md) — every Postgres table, indexes, constraints, encrypted-column strategy
