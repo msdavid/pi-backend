@@ -14,7 +14,7 @@
  * Malformed file/JSON is ignored (a typo cannot brick boot), matching
  * `quota/tiers.ts`. Unknown tier names fall back to the `default` tier.
  *
- * Authority: `docs/decisions.md` §6.3/§12.4/§17.3, `docs/db-schema.md`.
+ * Authority: spec §6.3/§12.4/§17.3, `docs/db-schema.md`.
  */
 
 import { existsSync, readFileSync } from "node:fs";

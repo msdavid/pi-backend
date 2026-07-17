@@ -4,8 +4,6 @@ A self-deployable service that gives the [Pi coding agent](https://github.com/ea
 
 The service is **tailored for Pi** — it adapts the *concepts* of managed agents (agents, sessions, environments, events, tools, memory, multi-agent orchestration, outcomes, scheduled deployments) to Pi-native idioms rather than mirroring any other API.
 
-- **Spec:** [`docs/spec/spec.md`](docs/spec/spec.md) (feature spec, ~2200 lines)
-- **Implementation plan:** [`docs/spec/implementation-plan.md`](docs/spec/implementation-plan.md) (phased, work-package resolution)
 - **API reference:** [`docs/api-reference.md`](docs/api-reference.md) (wire contract)
 - **Deployment:** [`docs/deploy.md`](docs/deploy.md) (full deploy guide)
 
@@ -143,13 +141,7 @@ docs/
   api-reference.md   # the wire contract
   db-schema.md       # Postgres schema (generated — see `pnpm db:schema:gen`)
   deploy.md          # deployment guide
-  session-worker-pool.md  # R7.1 harness-isolation pool (`SESSION_WORKER_MODE=pool`)
-  spec/
-    spec.md               # feature spec
-    decisions.md          # resolved / partial §30 open questions
-    progress.md            # merged work packages, rebuilt from evidence (R8)
-    implementation-plan.md # phased plan
-    api-reference-audit.md # partially retracted — see the doc's own banner
+  session-worker-pool.md  # harness-isolation pool (`SESSION_WORKER_MODE=pool`)
   ...
 ```
 
@@ -214,9 +206,7 @@ least-privilege, not `admin`.
 - [**Internal contracts**](docs/internal-contracts.md) — the port interfaces (SandboxProvider, SessionRuntime, SecretStore, …)
 - [**Plugin authoring**](docs/plugins.md) — how to write custom sandbox/secret/scheduler providers
 - [**Observability**](docs/observability.md) — OTEL span/metric conventions, msb-metrics pipeline, Grafana dashboards
-- [**Decisions log**](docs/spec/decisions.md) — resolved / partial §30 open questions
-- [**Progress ledger**](docs/spec/progress.md) — merged work packages, rebuilt from observed test output (R8)
-- [**Session-worker pool**](docs/session-worker-pool.md) — `SESSION_WORKER_MODE=pool` harness isolation (R7.1)
+- [**Session-worker pool**](docs/session-worker-pool.md) — `SESSION_WORKER_MODE=pool` harness isolation
 
 ## License
 

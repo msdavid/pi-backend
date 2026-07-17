@@ -58,7 +58,7 @@ export async function createTenant(
 /**
  * Seeds a freshly created tenant's default resources. Registered by the composition root
  * (`app.ts`), which wires it to `seedPrebuiltSkills` — the pre-built `pptx`/`xlsx`/`docx`/
- * `pdf` skill set (§20.1, decisions.md item 11) that was never invoked before R6.5. It is
+ * `pdf` skill set (§20.1). It is
  * a registration seam rather than a parameter because tenant creation happens on paths
  * (`onboarding/signup.ts`) that hold no object store, and seeding writes skill bundles to
  * it.

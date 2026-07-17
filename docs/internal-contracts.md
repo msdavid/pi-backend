@@ -80,8 +80,8 @@ and `credentialKey`/`mcpServerUrl` locators — none of which is a secret value.
   `subscribe` ≈ `session.subscribe()`, `interrupt` ≈ `abort()`,
   `getEntries` ≈ `SessionManager.getEntries()` (positional slice). It does NOT
   reimplement Pi internals.
-- **State machine:** `idle → running → rescheduling → terminated` (§6.3; 3 retries per
-  `docs/decisions.md` item 7).
+- **State machine:** `idle → running → rescheduling → terminated` (§6.3; 3 retries with
+  exponential backoff).
 - **Consumers:** WP-1.5 (impl), WP-1.6 (sessions API calls runtime), WP-1.7 (events API +
   SSE maps `subscribe` → wire), WP-1.8 (toolset config materializes into the session).
 - **Fake:** `FakeSessionRuntime` — scripted outbound events, seeded entries, call recording.

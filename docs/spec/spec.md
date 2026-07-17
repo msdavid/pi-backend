@@ -2076,17 +2076,14 @@ enforcement; browse sessions in the web console.
 3. **[RESOLVED] OTEL conventions.** Mirror the Pi Agent SDK's span/metric names where they
    exist, plus backend-specific `pi.<domain>.<action>` names
    (`infra/telemetry/conventions.ts`, `docs/observability.md`). Emission is wired
-   end-to-end; only the per-VM `pi.sandbox.*` gauges lack a producer
-   (see `docs/spec/decisions.md` item 3).
+   end-to-end; only the per-VM `pi.sandbox.*` gauges lack a producer.
 
 4. **[RESOLVED] Concurrency caps.** Implemented as per-tier quotas `concurrentSessions` /
    `concurrentSandboxes` (`domain/quota/plans.ts`, tier defaults in
-   `domain/tier-config/config.ts`; the default *values* remain policy placeholders — see
-   `docs/spec/decisions.md` item 4).
+   `domain/tier-config/config.ts`; the default *values* remain policy placeholders).
 
 5. **[RESOLVED] Sandbox execution timeouts.** Default per-exec timeout 120s with
-   per-agent/per-tool override (`session-manager/operations/remote-operations.ts`;
-   `docs/spec/decisions.md`).
+   per-agent/per-tool override (`session-manager/operations/remote-operations.ts`).
 
 6. **[GAP] Session log retention.** Beyond the 30-day checkpoint window — how long is the
    JSONL tree retained? Per-tier? Purge-on-request?
@@ -2107,7 +2104,7 @@ enforcement; browse sessions in the web console.
     one-shot jobs).
 
 11. **[OPEN] Default skills.** Which pre-built skills ship by default in v1?
-    (`pptx`/`xlsx`/`docx`/`pdf` are the v1 seed set — see `decisions.md`; we may adjust
+    (`pptx`/`xlsx`/`docx`/`pdf` are the v1 seed set; we may adjust
     based on Pi's audience.)
 
 12. **[RESOLVED] primus KVM availability.** GCP supports nested virtualization on Intel

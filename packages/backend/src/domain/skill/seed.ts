@@ -1,5 +1,5 @@
 /**
- * Pre-built skill seeding (WP-3.5, §20.1, decisions.md item 11).
+ * Pre-built skill seeding (§20.1).
  *
  * The default skill set shipped with v1 — `pptx`, `xlsx`, `docx`, `pdf` (the
  * standard document-task set) — is seeded **per tenant**. Seeding is
@@ -23,7 +23,7 @@ import {
   type BundleFile,
 } from "./skill.js";
 
-/** The default pre-built skill set (decisions.md item 11). */
+/** The default pre-built skill set. */
 export const PREBUILT_SKILL_NAMES = ["pptx", "xlsx", "docx", "pdf"] as const;
 
 /** A seeded pre-built skill entry + its minimal `SKILL.md` content. */

@@ -1,5 +1,5 @@
 /**
- * Audit-remediation config defaults (SEC-13, SEC-4, PERF-1, ROB-13).
+ * Security/robustness config defaults (SEC-13, SEC-4, PERF-1, ROB-13).
  *
  * These knobs are security-/robustness-sensitive, so their DEFAULTS are the contract:
  * onboarding closed, the multi-host channel secure, the DB pool bounded, and an instance
@@ -9,7 +9,7 @@
 import { describe, it, expect } from "vitest";
 import { loadConfig } from "../index.js";
 
-describe("audit-remediation config defaults", () => {
+describe("security/robustness config defaults", () => {
   const cfg = loadConfig({ env: {}, file: {} });
 
   it("disables onboarding by default (SEC-13)", () => {

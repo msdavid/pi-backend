@@ -99,8 +99,7 @@ policy over a *fleet*. What the data does bound is the arithmetic: on a host wit
 bytes, concurrent sessions ≤ M / (per-session total), i.e. between M / 75.73 MiB (all guests idle) and M / 517.17 MiB (every guest at its
 ceiling). The per-tier defaults in `domain/tier-config/config.ts` and
 `domain/quota/plans.ts` (free=2 / pro=10 / enterprise=50) were **not** derived from this
-measurement and are **not** derivable from it — see `docs/spec/decisions.md` items 4 and
-15, both **PARTIAL**.
+measurement and are **not** derivable from it.
 
 ## Open (what a live provider key would close)
 

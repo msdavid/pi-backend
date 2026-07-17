@@ -464,8 +464,7 @@ bytes, concurrent sessions ≤ M / (per-session total), i.e. between M / ${mib(
         )} (all guests idle) and M / ${mib(ceilingPerSession)} (every guest at its
 ceiling). The per-tier defaults in \`domain/tier-config/config.ts\` and
 \`domain/quota/plans.ts\` (free=2 / pro=10 / enterprise=50) were **not** derived from this
-measurement and are **not** derivable from it — see \`docs/spec/decisions.md\` items 4 and
-15, both **PARTIAL**.
+measurement and are **not** derivable from it.
 
 ## Open (what a live provider key would close)
 

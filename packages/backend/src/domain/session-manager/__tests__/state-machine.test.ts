@@ -1,5 +1,5 @@
 /**
- * State-machine unit + property tests (§6.3, decisions.md item 7).
+ * State-machine unit + property tests (§6.3).
  *
  * Property-style: a seeded PRNG drives random legal-transition sequences; we assert
  * invariants hold after every step (no escape from `terminated`; retry count bounded;
@@ -76,7 +76,7 @@ describe("SessionStateMachine", () => {
     expect([...sm.blockingEventIds]).toEqual(["evt_1", "evt_2"]);
   });
 
-  describe("retry / rescheduling (decisions.md item 7)", () => {
+  describe("retry / rescheduling", () => {
     it("schedules 3 retries with 1s→4s→16s backoff, then terminates", () => {
       const sm = new SessionStateMachine();
       sm.start();

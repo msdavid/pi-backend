@@ -17,7 +17,7 @@
  * preserve the WP-4.4 quota numbers exactly so wiring `quota/plans.ts` to this
  * surface is behaviour-preserving.
  *
- * Authority: `docs/decisions.md` §6.3/§12.4/§17.3 + `docs/db-schema.md`.
+ * Authority: spec §6.3/§12.4/§17.3 + `docs/db-schema.md`.
  */
 
 import { z } from "zod";
@@ -30,10 +30,10 @@ import { z } from "zod";
  * One tier's resolved limit envelope. Field names are authoritative across the
  * codebase; subsystems read the field that matches their concern.
  *
- * Schema defaults (applied when a field is omitted) cite the resolved ADRs:
+ * Schema defaults (applied when a field is omitted) cite their sources:
  * `maxVaultCredentials`→§12.4 (20), `maxJobs`→§17.3 (1000),
  * `checkpointRetentionDays`→§6.3 (30), `jsonlRetentionDays`→90-day log
- * retention (decisions.md), `memoryVersionRetentionDays`→§13.5 (30),
+ * retention, `memoryVersionRetentionDays`→§13.5 (30),
  * `jobRunRetentionDays`/`webhookDeliveryRetentionDays`→90-day defaults
  * (`docs/db-schema.md`).
  */
@@ -56,7 +56,7 @@ export const TierConfigSchema = z.object({
   monthlyTokenSpendUsd: z.number().min(0).default(200),
   /** Days to retain idle sandbox checkpoints (§6.3 = 30). */
   checkpointRetentionDays: z.number().int().min(0).default(30),
-  /** Days to retain the session JSONL tree after last activity (90, decisions.md). */
+  /** Days to retain the session JSONL tree after last activity (90). */
   jsonlRetentionDays: z.number().int().min(0).default(90),
   /** Days to retain memory versions (§13.5 = 30; recent versions always kept). */
   memoryVersionRetentionDays: z.number().int().min(0).default(30),

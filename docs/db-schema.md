@@ -18,8 +18,8 @@
 >
 > **Design intent** (the *why* behind the DDL) lives in `spec.md` §28 (Persistence & State),
 > §27 (Multi-Tenancy), §6 (Resource Model), §12.4 (Vault constraints), §13.5 (Memory
-> versions), §17.8 (Scheduler exactly-once), §23.6 (Webhook retry queue), and
-> `docs/decisions.md`. The prose sections here (§1, §2, §4–§7) are hand-written commentary
+> versions), §17.8 (Scheduler exactly-once), and §23.6 (Webhook retry queue). The prose
+> sections here (§1, §2, §4–§7) are hand-written commentary
 > maintained in `scripts/gen-db-schema.mjs`; only §3 is machine-derived.
 
 ## 1. Principles
@@ -875,7 +875,7 @@ turn — never an idle session.
 
 | Table | Column | Policy | Source |
 |---|---|---|---|
-| `sessions` | `last_activity_at` | 30-day checkpoint window (idle sandbox retained); 90-day JSONL retention (purge-on-request supported) | §6.3, decisions.md |
+| `sessions` | `last_activity_at` | 30-day checkpoint window (idle sandbox retained); 90-day JSONL retention (purge-on-request supported) | §6.3 |
 | `memory_versions` | `expires_at` | 30-day retention; recent versions always kept regardless of age | §13.5 |
 | `idempotency_keys` | `expires_at` | 24h replay window; rows swept after expiry | api-reference.md, §"Idempotency-Key" |
 | `job_runs` | `created_at` | 90-day default (configurable) | this doc |

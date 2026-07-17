@@ -1,12 +1,12 @@
 /**
- * Postgres connection pool (WP-P0.2).
+ * Postgres connection pool.
  *
  * A thin wrapper over `pg.Pool` so the rest of the service never instantiates
  * `pg` directly: every DB-touching module receives a `Pool` (or a helper built
  * on one) and queries stay explicit and auditable (§27.1 — row-level tenant
  * filtering must be auditable; no heavyweight ORM).
  *
- * Conventions (CONVENTIONS.md §3.2, docs/db-schema.md §2):
+ * Conventions (CONVENTIONS.md "Technology decisions", docs/db-schema.md §2):
  * - `pg` + node-pg-migrate, forward-only SQL migrations.
  * - Every tenant-scoped table has `tenant_id`; the {@link TenantCtx} type is the
  *   compile-time anchor the {@link tenantScoped} helper (see `tenant-scoped.ts`)

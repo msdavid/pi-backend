@@ -157,7 +157,7 @@ export interface ExecOptions {
   cwd?: string;
   /** Non-secret execution env. Credentials go through `SecretBinding`, never here. */
   env?: Record<string, string>;
-  /** Seconds. Default 120 (docs/decisions.md item 5). */
+  /** Seconds. Default 120. */
   timeout?: number;
   rlimit?: ResourceLimits;
 }
@@ -412,7 +412,7 @@ export interface OutboundEvent {
  * Managed session state machine (§6.3). Starts in `idle`.
  * - `idle` — awaiting input; sandbox checkpointed.
  * - `running` — executing a turn.
- * - `rescheduling` — transient retry (3 retries, docs/decisions.md item 7).
+ * - `rescheduling` — transient retry (3 retries, backoff 1s→4s→16s).
  * - `terminated` — unrecoverable error.
  */
 export type SessionStatus = "idle" | "running" | "rescheduling" | "terminated";

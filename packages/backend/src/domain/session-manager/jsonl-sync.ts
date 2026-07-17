@@ -3,7 +3,7 @@
  *
  * Pi's `SessionManager` writes JSONL to local disk; the backend syncs the local file
  * to the {@link ObjectStore} on every `session.status_idle` transition + a periodic
- * interval while running (default 30s, decisions.md / docs/decisions.md item context).
+ * interval while running (default 30s).
  *
  * Sync uses `objectStore.conditionalPut(key, stream, ifMatch)` (§28): the first sync
  * establishes the object via `put` (capturing the etag); subsequent syncs use

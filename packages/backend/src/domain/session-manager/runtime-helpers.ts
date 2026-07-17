@@ -44,7 +44,7 @@ export function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** Heuristic: is a `prompt()` rejection transient (retryable) per decisions.md item 7. */
+/** Heuristic: is a `prompt()` rejection transient (retryable). */
 export function isTransient(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
   if (/auth|authentication|forbidden|401|403|budget|archived|not found/i.test(msg)) {

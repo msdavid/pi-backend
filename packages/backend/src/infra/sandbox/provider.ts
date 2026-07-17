@@ -133,7 +133,7 @@ interface BindingRecord {
   mcpServerUrl?: string;
 }
 
-/** Default per-exec timeout in seconds (docs/decisions.md item 5). */
+/** Default per-exec timeout in seconds. */
 const DEFAULT_EXEC_TIMEOUT_SECS = 120;
 
 /**

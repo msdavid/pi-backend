@@ -1,8 +1,8 @@
 /**
- * Postgres infrastructure barrel (WP-P0.2): pool, tenant-scoped query helper,
- * and the migration runner.
+ * Postgres infrastructure barrel: pool, tenant-scoped query helper, and the
+ * migration runner.
  *
- * See CONVENTIONS.md §3.2 and docs/db-schema.md §1–§9.
+ * See CONVENTIONS.md (Technology decisions) and docs/db-schema.md §1–§9.
  */
 
 export {

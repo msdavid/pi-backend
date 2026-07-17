@@ -1,5 +1,5 @@
 /**
- * Structured logging via pino (CONVENTIONS.md §3.2).
+ * Structured logging via pino.
  *
  * The root logger carries service-level fields; per-request and per-session
  * correlation (tenantId / sessionId / requestId) is added through child loggers

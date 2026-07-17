@@ -1,9 +1,8 @@
 /**
  * @pi-managed/backend — the Pi Managed Backend service.
  *
- * P0.1 scaffold: layered config, structured logging + OTEL, health/readiness
- * endpoints, and the Fastify app factory + composition root. Subsystems land in
- * Phases 0–5 per implementation-plan.md.
+ * Layered config, structured logging + OTEL, health/readiness endpoints, and the
+ * Fastify app factory + composition root.
  */
 
 /** Package version (placeholder until real code lands). */

@@ -8,7 +8,7 @@
  * avoids any zip-writing dependency (the upload path extracts zips into objects,
  * the materialization path reads objects back out). Custom skills are unique by
  * `display_title` within a tenant (§20.2); pre-built skills are seeded per tenant
- * (§20.1, decisions.md).
+ * (§20.1).
  *
  * Every query routes through {@link tenantScopedQuery} so cross-tenant access is
  * impossible by construction (§27.1).

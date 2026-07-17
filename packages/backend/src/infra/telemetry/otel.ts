@@ -1,6 +1,6 @@
 /**
- * OpenTelemetry SDK wiring (CONVENTIONS.md §3.2; decisions.md §30 item 3, resolved
- * in WP-5.4; production instrumentation wired in WP-8.1).
+ * OpenTelemetry SDK wiring (naming conventions in `conventions.ts` and
+ * `docs/observability.md`).
  *
  * Behaviour:
  * - If `OTEL_EXPORTER_OTLP_ENDPOINT` is unset, telemetry is a no-op: the process

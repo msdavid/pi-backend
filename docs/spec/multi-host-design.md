@@ -243,7 +243,7 @@ pending snapshots.)
 - **Host down at boot re-attach**: `reattachByLabels` only scans healthy hosts; a VM
   on a dead host is not re-attached and will be re-provisioned on `wake` (§10.3).
 - **No healthy host fits the spec**: `provision` throws a typed `NoHostAvailableError`;
-  the session enters `rescheduling` then `terminated` (§6.3, decisions.md item 7).
+  the session enters `rescheduling` then `terminated` (§6.3).
 - **Placement table drift**: re-attach reconciliation (§5) repairs owner rows.
 
 ## 10. Testing

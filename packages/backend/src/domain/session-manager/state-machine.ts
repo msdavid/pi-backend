@@ -1,13 +1,13 @@
 /**
- * Managed-session state machine (§6.3, docs/decisions.md item 7).
+ * Managed-session state machine (§6.3).
  *
  * `idle → running → rescheduling → terminated` with `StopReason`s
  * (`requires_action`, `budget_exhausted`, `user_interrupt`, `error`, `completed`).
  *
  * - `idle` — awaiting input; sandbox checkpointed (idle policy may stop it).
  * - `running` — executing a turn (a `prompt()` is in flight).
- * - `rescheduling` — transient retry in progress (3 retries, backoff 1s→4s→16s;
- *   decisions.md item 7). After the 3rd failed retry → `terminated` (`error`).
+ * - `rescheduling` — transient retry in progress (3 retries, backoff 1s→4s→16s).
+ *   After the 3rd failed retry → `terminated` (`error`).
  * - `terminated` — unrecoverable.
  *
  * The runtime drives this machine; Pi's *internal* auto-retry (sdk.md
@@ -22,10 +22,10 @@
 import type { StopReason } from "@pi-managed/contracts";
 import type { SessionStatus } from "../ports.js";
 
-/** Number of backend retries before terminating (decisions.md item 7). */
+/** Number of backend retries before terminating. */
 export const MAX_RETRIES = 3;
 
-/** Exponential backoff delays in ms: 1s → 4s → 16s (decisions.md item 7). */
+/** Exponential backoff delays in ms: 1s → 4s → 16s. */
 export const RETRY_BACKOFF_MS: readonly number[] = [1_000, 4_000, 16_000];
 
 /** Outcome of {@link SessionStateMachine.scheduleRetry}. */

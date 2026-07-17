@@ -7,7 +7,7 @@
  *
  * Config errors are **fatal**: an invalid value (bad port, unknown log level, …)
  * prints a clear message to stderr and exits the process with code 1. The service
- * must never boot with a half-parsed config (decisions.md: locked stack).
+ * must never boot with a half-parsed config.
  */
 
 import { existsSync, readFileSync } from "node:fs";
@@ -75,8 +75,7 @@ export type SandboxHostConfig = z.infer<typeof SandboxHostConfigSchema>;
 /**
  * Validated service configuration. Field names mirror the env var that overrides
  * them (camelCased) so the precedence is obvious. OTEL fields are passthrough
- * strings consumed by {@link infra/telemetry/otel.ts}; OTEL conventions are
- * finalized in WP-5.4 (decisions.md §30 item 3).
+ * strings consumed by {@link infra/telemetry/otel.ts}.
  */
 export const ConfigSchema = z.object({
   /** TCP port the HTTP server binds. Env `PORT`. */

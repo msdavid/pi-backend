@@ -441,7 +441,7 @@ describe("ManagedSessionRuntime crash recovery (§10.3)", () => {
   });
 });
 
-describe("ManagedSessionRuntime transient retry (decisions.md item 7)", () => {
+describe("ManagedSessionRuntime transient retry", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 

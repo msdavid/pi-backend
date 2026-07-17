@@ -1,18 +1,9 @@
 # API Reference — Conventions
 
 > **Purpose.** This is the **wire contract** for the Pi Managed Backend REST + SSE API.
-> `spec.md` is feature-level: it names resources and operations. This document pins the
-> wire — JSON shapes, HTTP status codes, error taxonomy, pagination cursors, event-type
-> strings, and the cross-cutting semantics every resource family must conform to. It is
-> the synchronization artifact for parallel API implementation: later work packages
-> (WP-0.3 … WP-0.6) append resource-family sections below and **must** conform to the
-> conventions defined here.
->
-> **Authority.** When `spec.md` and this document disagree, `spec.md` is authoritative;
-> report contradictions, do not pick silently. Event-type strings (§Event-type naming) are
-> **FINAL** per `docs/decisions.md` item 1.
->
-> **Status:** WP-0.2 (conventions section). Resource-family sections are stubbed below.
+> This document pins the wire — JSON shapes, HTTP status codes, error taxonomy,
+> pagination cursors, event-type strings, and the cross-cutting semantics every resource
+> family must conform to.
 
 ## Table of contents
 
@@ -332,9 +323,7 @@ Persisted event types follow `{domain}.{action}` (spec §9.1). Example:
 - Every persisted event carries a `processedAt` timestamp; `null` means the event is
   **queued** and will be handled after preceding events finish (spec §9.1).
 
-> **FINAL (per `docs/decisions.md` item 1, resolved 2026-07-12):** The provisional
-> §9.2 event-type names below are accepted as final. They are not TBD. Wire JSON schemas
-> for each event land in WP-0.4.
+> **FINAL:** The §9.2 event-type names below are final.
 
 ### Persisted event catalog (FINAL)
 
@@ -691,7 +680,7 @@ Response `201`:
 ```
 
 **State machine** (§6.3): `idle` → `running` → `rescheduling` (transient retry, 3 tries
-with exp backoff 1s→4s→16s per decisions.md) → `terminated` (unrecoverable error). Starts
+with exp backoff 1s→4s→16s) → `terminated` (unrecoverable error). Starts
 in `idle`. Idle sessions have their sandbox checkpointed (stopped, disk preserved).
 
 ### `GET /v1/sessions` — list
@@ -1136,7 +1125,7 @@ Returns `204`. Hard delete (§21).
 ## Skills
 
 > **Spec:** §8.10, §20. Pi has a native skills system (Agent Skills standard) — used
-> directly. Pre-built (`pptx`, `xlsx`, `docx`, `pdf` per decisions.md) + custom.
+> directly. Pre-built (`pptx`, `xlsx`, `docx`, `pdf`) + custom.
 
 ### `POST /v1/skills` — upload (zip or individual files; returns skill_ id)
 

@@ -116,11 +116,11 @@ export interface RemoteOperationsOptions {
   provider: SandboxProvider;
   /** Handle of the provisioned VM all commands run inside. */
   handle: SandboxHandle;
-  /** Per-exec timeout in seconds (default 120, docs/decisions.md item 5). */
+  /** Per-exec timeout in seconds (default 120). */
   timeout?: number;
 }
 
-/** Default per-exec timeout in seconds (docs/decisions.md item 5). */
+/** Default per-exec timeout in seconds. */
 const DEFAULT_EXEC_TIMEOUT_SECS = 120;
 
 // ---------------------------------------------------------------------------

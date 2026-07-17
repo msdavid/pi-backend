@@ -1,7 +1,7 @@
 /**
- * OTEL span/metric name conventions (WP-5.4; resolves decisions.md §30 item 3).
+ * OTEL span/metric name conventions.
  *
- * ## The decision (§30 item 3 → RESOLVED)
+ * ## The decision
  *
  * **Mirror the Pi Agent SDK's OTEL span/metric names where they exist**, and add
  * backend-specific names for managed-only concepts (sessions, sandboxes, jobs,

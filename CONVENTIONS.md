@@ -1,14 +1,9 @@
 # Pi Managed Backend — Binding Conventions
 
-> This document is the **binding conventions** reference for every coding agent and the
-> orchestrator. It reproduces, verbatim, the technology decisions (plan §3.2) and the
-> rules every coding agent must follow (plan §3.4). When this file and the implementation
-> plan disagree, the implementation plan is authoritative; when the plan and `spec.md`
-> disagree, `spec.md` is authoritative (plan §1 "Source of truth").
+> This document is the **binding conventions** reference for anyone working on this
+> codebase. When this file and `docs/spec/spec.md` disagree, `spec.md` is authoritative.
 
-## Technology decisions (locked; changing one = human escalation)
-
-Reproduced from `implementation-plan.md` §3.2:
+## Technology decisions (locked; changing one = a deliberate, discussed decision)
 
 - Node 20+, TypeScript strict, ESM. pnpm workspaces.
 - HTTP: **Fastify** (SSE via reply hijack; JSON schema validation from `contracts` zod
@@ -18,7 +13,7 @@ Reproduced from `implementation-plan.md` §3.2:
   helper makes the filter mandatory by construction.
 - Validation: **zod** (single source in `contracts`, reused server + client extension).
 - Tests: **vitest**; integration tests use testcontainers-Postgres; sandbox/KVM tests are
-  tagged `@kvm` and run only on the KVM-capable runner.
+  tagged `@kvm` and run only on a KVM-capable machine.
 - IDs: prefixed (`agent_`, `env_`, `sess_`, `vault_`, `mem_`, `memver_`, `skill_`,
   `file_`, `job_`, `wh_` — §6.6), ULID payload, generated server-side.
 - Password/API-key hashing: **argon2id** (§8). Secrets encryption at rest: AES-256-GCM
@@ -26,17 +21,15 @@ Reproduced from `implementation-plan.md` §3.2:
 - Errors: single wire error shape defined in api-reference.md conventions; internal errors
   extend one error class with a machine-readable `code` — see "Errors: one base, one edge"
   below for the binding form of this rule.
-- Lint/format: eslint + prettier, configured once in WP-0.1; agents never restyle
+- Lint/format: eslint + prettier, configured once at the repo root; never restyle
   neighboring code.
 
 ## Repository layout (pnpm workspace monorepo)
 
-Reproduced from `implementation-plan.md` §3.1:
-
 ```
 /packages
-  /contracts          # wire types + zod schemas, generated-adjacent to api-reference.md.
-                      # THE synchronization artifact. Changes = dedicated WP.
+  /contracts          # wire types + zod schemas, kept in sync with api-reference.md.
+                      # THE synchronization artifact between server and clients.
   /backend            # the service
     /src
       /api            # HTTP routes, one dir per resource family (agents/, sessions/, ...)
@@ -48,36 +41,27 @@ Reproduced from `implementation-plan.md` §3.1:
                       #   (tasks/, goals/, permission-gate/, mcp-bridge/, subagent/,
                       #   custom-tools/)
   /client-extension   # @pi-managed/client (§24)
-  /worker             # default self-hosted worker (§10.4, Phase 4)
+  /worker             # default self-hosted worker (§10.4)
   /web-console        # @pi-managed/web-console — read-only web console (§26.6)
   /testkit            # shared test fixtures: pg testcontainer, fake sandbox provider,
                       #   SSE test client, tenant/api-key factories
 /docs
-  api-reference.md    # wire contract (Wave 0)
-  db-schema.md        # schema doc (Wave 0)
-  internal-contracts.md # internal seam interfaces (Wave 0/Phase 1)
+  api-reference.md    # wire contract
+  db-schema.md        # schema doc (generated — see `pnpm db:schema:gen`)
+  internal-contracts.md # internal seam interfaces
   /spec
-    spec.md
-    implementation-plan.md
-    progress.md       # orchestrator ledger
+    spec.md             # feature spec
+    multi-host-design.md # multi-host sandbox scheduling design note
 ```
 
-## Rules every coding agent must follow
+## General rules
 
-Reproduced verbatim from `implementation-plan.md` §3.4:
+1. The spec (`docs/spec/spec.md`, cited as `§x.y` throughout the codebase) is
+   authoritative for feature behavior.
+2. Never place provider credentials in `process.env`, code, or fixtures (§4.2, §25).
+3. Match existing conventions exactly; no drive-by refactors.
 
-1. Work only inside your assigned paths. If you believe you must touch a shared file not
-   listed in your brief, **stop and report** — do not edit it.
-2. The spec (§ refs in your brief) is authoritative. If the brief contradicts the spec,
-   report the contradiction; don't pick silently.
-3. Verify before reporting: run the listed commands; report actual output honestly.
-4. No new dependencies without listing them in your report (orchestrator approves).
-5. Never place provider credentials in `process.env`, code, or fixtures (§4.2, §25).
-6. Match existing conventions exactly; no drive-by refactors.
-7. Do not commit — leave the worktree dirty-or-committed per orchestrator instruction
-   (default: commit to your branch, never push, never merge).
-
-## Errors: one base, one edge (R7.2 — binding)
+## Errors: one base, one edge (binding)
 
 > **`ApiError` is declared in `packages/backend/src/domain/errors.ts`. Domain code throws it;
 > `server.ts` renders it. Nothing imports errors from `server.js`, ever.**
@@ -117,17 +101,17 @@ cycle, visible in `domain/vault/validate.ts`, which used a dynamic
   status/code; anything left unconverted surfaces as `500 internal_error`. Adding a new one is
   fine; giving it an `httpStatus` field and teaching the error handler about it is not.
 
-## Fakes at the seam under test (R1.3 — binding, lint-enforced)
+## Fakes at the seam under test (binding, lint-enforced)
 
 > **A fake is legitimate for a COLLABORATOR. It is never legitimate for the SUBJECT.
 > Where a boundary is the subject, both sides must be real.**
 
-This is remediation-plan rule §0.2, made enforceable. It exists because of a specific,
-already-shipped bug: the client streamed `…/events/stream`, the backend served `…/stream`,
-so **every** client SSE connection 404'd — and the client test was *green*, because it stubbed
-`fetch` and asserted the URL its own client had produced. A stub can only confirm what the
-subject already believes. Such a test does not merely fail to catch the bug; it **enshrines**
-it, and makes the next agent's "the tests pass" report true and worthless.
+This rule exists because of a specific, already-shipped bug: the client streamed
+`…/events/stream`, the backend served `…/stream`, so **every** client SSE connection 404'd —
+and the client test was *green*, because it stubbed `fetch` and asserted the URL its own client
+had produced. A stub can only confirm what the subject already believes. Such a test does not
+merely fail to catch the bug; it **enshrines** it, and makes the next "the tests pass" report
+true and worthless.
 
 **The rule.**
 
@@ -139,8 +123,8 @@ it, and makes the next agent's "the tests pass" report true and worthless.
   Pi-SDK seam — then that boundary may not be faked in its own test. Drive the real other side:
   the real in-process Fastify app (client↔server), the real provider under `@kvm`, a real local
   server (pinned-socket/SSRF transport), the real DB via testcontainers.
-- Corollary (plan §0.3): a test must exercise the code production actually runs. A green test
-  over a component with no production call site is not coverage.
+- Corollary: a test must exercise the code production actually runs. A green test over a
+  component with no production call site is not coverage.
 
 **Enforcement.** The local ESLint rule `seam/no-fake-at-seam` (defined in `eslint.config.mjs`,
 applied to every `*.test.ts`) is an error on:
@@ -152,7 +136,7 @@ applied to every `*.test.ts`) is an error on:
 3. injecting a fake transport (`fetchImpl`) into a **seam/contract test** — currently
    `client-extension/src/api-client.test.ts` and any `*contract*.test.ts` /
    `*conformance*.test.ts` under `client-extension/src/**`, whose entire purpose is that both
-   sides of the seam are real (R3.2).
+   sides of the seam are real.
 
 The rule is deliberately narrow: it targets the class of bug above, not mocking in general.
 Mocking a *collaborator* module, injecting a scripted collaborator, and stubbing a clock are
