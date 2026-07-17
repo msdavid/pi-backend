@@ -61,44 +61,44 @@ placed, nothing is specified. Every deeper section expands something introduced 
 ```mermaid
 flowchart LR
     subgraph clients["Clients"]
-        pi["Local Pi<br/>+ client extension<br/>(/remote:* commands)"]
-        console["Web console<br/>(read-only browser SPA)"]
+        pi["Local Pi<br/>+ client extension<br/>/remote:* commands"]
+        console["Web console<br/>read-only browser SPA"]
         anyapi["Any API client"]
     end
 
-    subgraph cp["Control plane — one Node process"]
-        edge["HTTP edge (Fastify)<br/>auth &middot; scopes &middot; rate limits<br/>idempotency &middot; quotas"]
-        dom["Domain services<br/>agents &middot; environments &middot; sessions &middot; events<br/>vaults &middot; memory &middot; files &middot; skills &middot; jobs<br/>outcomes &middot; multi-agent &middot; webhooks"]
-        rt["Session runtime (harness)<br/>ManagedSessionRuntime<br/>wrapping a Pi AgentSession"]
-        loops["Background loops<br/>cron tick &middot; webhook dispatch<br/>vault revalidation &middot; sandbox reaper<br/>event retention &middot; host liveness"]
+    subgraph cp["Control plane - one Node process"]
+        httpedge["HTTP edge - Fastify<br/>auth, scopes, rate limits,<br/>idempotency, quotas"]
+        dom["Domain services<br/>agents, environments, sessions, events,<br/>vaults, memory, files, skills, jobs,<br/>outcomes, multi-agent, webhooks"]
+        rt["Session runtime - harness<br/>ManagedSessionRuntime<br/>wrapping a Pi AgentSession"]
+        loops["Background loops<br/>cron tick, webhook dispatch,<br/>vault revalidation, sandbox reaper,<br/>event retention, host liveness"]
     end
 
-    subgraph exec["Execution"]
-        vm["microsandbox microVMs<br/>(detached, one per session,<br/>KVM, own kernel)"]
-        pool["KVM host pool<br/>(multi-host mode,<br/>host agents over mTLS)"]
-        shw["Self-hosted worker<br/>(subscriber infrastructure,<br/>outbound-only polling)"]
+    subgraph execution["Execution"]
+        vm["microsandbox microVMs<br/>detached, one per session,<br/>KVM, own kernel"]
+        hostpool["KVM host pool<br/>multi-host mode,<br/>host agents over mTLS"]
+        shw["Self-hosted worker<br/>subscriber infrastructure,<br/>outbound-only polling"]
     end
 
-    subgraph state["State"]
-        pg[("Postgres<br/>control plane &middot; event projection<br/>encrypted vault &middot; work queue")]
-        obj[("Object store<br/>JSONL logs &middot; files &middot; memory<br/>skills &middot; snapshots")]
+    subgraph stores["State"]
+        pg[("Postgres<br/>control plane, event projection,<br/>encrypted vault, work queue")]
+        obj[("Object store<br/>JSONL logs, files, memory,<br/>skills, snapshots")]
     end
 
-    llm["Model providers<br/>(tenant's own keys)"]
+    llm["Model providers<br/>tenant's own keys"]
 
-    pi -- "REST + SSE /v1" --> edge
-    console -- "/console + GET /v1" --> edge
-    anyapi -- "REST /v1" --> edge
-    shw -- "claim work / post results" --> edge
-    edge --> dom
+    pi -->|REST + SSE /v1| httpedge
+    console -->|/console + GET /v1| httpedge
+    anyapi -->|REST /v1| httpedge
+    shw -->|claim work / post results| httpedge
+    httpedge --> dom
     dom --> rt
     dom --> pg
     dom --> obj
-    rt -- "tool calls" --> vm
-    rt -- "model turns" --> llm
-    rt -- "JSONL sync" --> obj
-    dom -. "multi-host placement" .-> pool
-    pool --> vm
+    rt -->|tool calls| vm
+    rt -->|model turns| llm
+    rt -->|JSONL sync| obj
+    dom -.->|multi-host placement| hostpool
+    hostpool --> vm
     loops --> pg
 ```
 
@@ -390,14 +390,14 @@ sequenceDiagram
     participant V as microVM
 
     C->>E: POST user.message (202)
-    E->>R: sendEvent → prompt()
+    E->>R: sendEvent, mapped to prompt()
     R->>M: model turn (tenant's key, host-side)
     M-->>R: tool_use
     R->>V: exec via Operations adapter
     V-->>R: tool result
     R->>M: continue turn
     M-->>R: agent.message
-    Note over R: every event → JSONL append<br/>+ session_events projection (position)<br/>+ live SSE fan-out
+    Note over R: every event: JSONL append<br/>+ session_events projection (position)<br/>+ live SSE fan-out
     R-->>C: stream events (id = position)
     R-->>E: session.status_idle + stopReason
 ```
