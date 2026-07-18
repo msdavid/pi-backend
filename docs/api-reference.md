@@ -27,19 +27,24 @@ Conventions:
 
 Resource-family sections (appended by later work packages):
 
-- Agents — TODO — WP-0.3
-- Environments — TODO — WP-0.3
-- Sessions — TODO — WP-0.3
-- Events & SSE — TODO — WP-0.4
-- Vaults — TODO — WP-0.5
-- Memory stores — TODO — WP-0.5
-- Files — TODO — WP-0.5
-- Skills — TODO — WP-0.5
-- Outcomes — TODO — WP-0.5
-- Jobs — TODO — WP-0.6
-- Webhooks — TODO — WP-0.6
-- Tenant / admin — TODO — WP-0.6
-- Self-hosted work queue — TODO — WP-0.6
+- [Agents](#agents) — WP-0.3
+- [Environments](#environments) — WP-0.3
+- [Sessions](#sessions) — WP-0.3; list `?stopReason=` filter + embedded
+  `usage.usdCost` — WP-C2.0
+- [Events & SSE](#events--sse) — WP-0.4
+- [Vaults](#vaults) — WP-0.5
+- [Memory stores](#memory-stores) — WP-0.5; version restore — WP-C4.0
+- [Files](#files) — WP-0.5
+- [Skills](#skills) — WP-0.5
+- [Outcomes](#outcomes) — WP-0.5
+- [Jobs](#scheduled-jobs-crons) — WP-0.6
+- [Webhooks](#webhooks) — WP-0.6
+- [Tenant / admin](#tenant--admin-saas-shape) — WP-0.6;
+  `GET /v1/tenant/usage` (usage over time) — WP-C3.0
+- [Billing (saas)](#billing-saas) — WP-C5.1 (ledger balance / history / verify)
+- [Self-hosted work queue](#self-hosted-work-queue) — WP-0.6
+- [Console support (non-`/v1`)](#console-support-non-v1) — WP-C1.1 (config),
+  WP-C1.2 (sessions)
 
 ## Versioning & base path
 
@@ -75,12 +80,16 @@ Every API key carries a set of **scopes**; every route is guarded by a method→
 | Scope | Grants |
 |---|---|
 | `read` | `GET`/`HEAD` requests. |
-| `write` | Mutating requests (`POST`/`PATCH`/`PUT`/`DELETE`), plus everything `read` grants. |
-| `admin` | Everything, including key management. |
+| `write` | Mutating requests (`POST`/`PATCH`/`PUT`/`DELETE`), plus everything `read` grants — **except API-key management**. |
+| `admin` | Everything, including key management (`POST /v1/api-keys`, `DELETE /v1/api-keys/:id` require `admin`). |
 
 - A request whose key lacks the required scope fails with **`403 forbidden`**.
+- **API-key management is `admin`-only**: `POST /v1/api-keys` and
+  `DELETE /v1/api-keys/:id` require the `admin` scope and are `403 forbidden`
+  for `write` keys (issued scopes are caller-chosen, so mint-by-`write` would
+  be privilege escalation). `GET /v1/api-keys` remains a `read` route.
 - **New keys default to `["read"]`** (least privilege) — pass `scopes` on
-  `POST /v1/api-keys` to mint a key that can mutate.
+  `POST /v1/api-keys` (with an `admin` key) to mint a key that can mutate.
 - `self_hosted_worker:<envId>` keys (issued via `POST /v1/environments/:id/worker-keys`)
   are valid **only** for the self-hosted work-queue routes and are denied (`403`) on every
   other guarded route.
@@ -142,6 +151,7 @@ sees.
 | `204 No Content` | Successful mutation with no response body. | `DELETE`, some `archive`/`pause`/`unpause` actions. |
 | `400 Bad Request` | Malformed JSON, missing required header, or unreadable body. | Use `code: invalid_request`. |
 | `401 Unauthorized` | Missing or invalid credentials. | `code: unauthorized`. |
+| `402 Payment Required` | saas balance ≤ 0 (unverified trial or drained): new work blocked, reads unaffected (console spec §11.1). | `code: budget_exhausted` with `details.reason`. |
 | `403 Forbidden` | Authenticated but not permitted. | `code: forbidden`. |
 | `404 Not Found` | Resource does not exist (or is in another tenant). | `code: not_found`. |
 | `409 Conflict` | State conflict, including idempotency-key reuse with a different body. | `code: conflict` or `idempotency_conflict`. |
@@ -522,18 +532,21 @@ Query: `?limit=50&cursor=&name=&metadata.team=platform`. Response `200`: `{data:
 
 ### `GET /v1/agents/:id` — retrieve
 
-Response `200`: the agent resource (current version config expanded). `404 not_found` if
-archived-or-not-yours.
+Response `200`: the agent resource (current version config expanded). Archived agents
+remain readable (read-only — the console renders their detail without mutations,
+WP-C3.1). `404 not_found` if absent or not yours.
 
 ### `PATCH /v1/agents/:id` — update (creates a new version)
 
-Body: any subset of the create fields. **Creates a new immutable version**
-(`currentVersion` increments). Returns `200` with the updated resource.
+Body: any subset of the create fields (omitted fields keep their previous value —
+field-level merge). **Creates a new immutable version** (`currentVersion` increments).
+Returns `200` with the updated resource. `409 resource_archived` on an archived agent.
 
 ### `POST /v1/agents/:id/archive` — archive (terminal)
 
 `Idempotency-Key` required. Archive is **terminal**: read-only, no unarchive, no new
-sessions can reference it (§6.1). Returns `200` with `status: "archived"`. If a job
+sessions can reference it (§6.1). Returns `200` with `status: "archived"`; idempotent
+(archiving an already-archived agent returns the archived resource). If a job
 references this agent, the job is auto-archived in the same operation (§17.5).
 
 ### `GET /v1/agents/:id/versions` — list versions
@@ -668,7 +681,7 @@ Response `201`:
   "status": "idle",
   "stopReason": null,
   "budget": {"maxTokens": 1000000, "maxUsd": 2.00},
-  "usage": {"inputTokens": 0, "outputTokens": 0, "cacheCreationInputTokens": 0, "cacheReadInputTokens": 0},
+  "usage": {"inputTokens": 0, "outputTokens": 0, "cacheCreationInputTokens": 0, "cacheReadInputTokens": 0, "usdCost": 0},
   "vaultIds": ["vault_01J…"],
   "resources": [],
   "metadata": {"userId": "u_123"},
@@ -685,11 +698,26 @@ in `idle`. Idle sessions have their sandbox checkpointed (stopped, disk preserve
 
 ### `GET /v1/sessions` — list
 
-Query: `?limit=&cursor=&status=&agentId=&environmentId=`. Response `200`: `{data, nextCursor}`.
+Query: `?limit=&cursor=&status=&stopReason=&agentId=&environmentId=`. Response `200`:
+`{data, nextCursor}`.
+
+- `stopReason` filters on the session's current `stopReason` (values:
+  `requires_action`, `budget_exhausted`, `user_interrupt`, `error`, `completed`) and is
+  combinable with the other filters — e.g. `?status=idle&stopReason=requires_action`
+  lists every session awaiting a blocking action (the console's global
+  `requires_action` surfacing). Additive change.
+- Filter values are validated against the `SessionListParams` contract: a value
+  outside the `status`/`stopReason` enums or a malformed `agentId`/`environmentId`
+  is rejected with `422` (`code: invalid_request`) — never a silent empty page.
+  (`limit` keeps the cursor-pagination clamp-don't-reject semantics.)
 
 ### `GET /v1/sessions/:id` — retrieve (status, usage, config)
 
 Response `200`: the session resource above.
+
+- `usage` on the session resource (list + detail) is the cumulative rollup in the same
+  shape as `GET /v1/sessions/:id/usage`, including `usdCost` (additive field; powers
+  the console's session-list cost column).
 
 ### `PATCH /v1/sessions/:id` — update agent.tools / agent.mcpServers (idle only)
 
@@ -740,7 +768,8 @@ Response `200`:
 }
 ```
 
-Cache TTL is provider-dependent (§9.7); USD via per-model price table.
+Cache TTL is provider-dependent (§9.7); USD via per-model price table (`usdCost` is the
+`usage_records` rollup). The same rollup is embedded as `usage` on the session resource.
 
 ### `GET /v1/sessions/:id/metrics` — live sandbox resource sample (§26.4)
 
@@ -1032,6 +1061,12 @@ Returns credential records **without** sensitive fields.
 Returns `200` with `status: "archived"`. The secret payload is purged; the key remains
 visible and is freed for a replacement (§12.7).
 
+> **Known gap (WP-C3.3 contract tests):** the "freed for a replacement" clause is not
+> what the backend does today — the `(vault_id, key)` unique index (`008`) has no status
+> filter, so re-adding an archived key answers `409 conflict`. Until a backend WP either
+> scopes the index to active rows or documents key reservation as intended, rotating a
+> secret under the same key is not possible; use a new key.
+
 ### `POST /v1/vaults/:id/credentials/:key/validate` — validate OAuth status
 
 Response `200`: `{"status": "valid" | "invalid" | "unknown"}` — `invalid` = grant gone /
@@ -1093,6 +1128,28 @@ Retained 30 days; recent versions always kept regardless of age.
 (who/what/when) — for compliance (§13.6). A version that is the **current head of a live
 memory cannot be redacted** — `409 conflict`; write a new version first (or delete the
 memory), then redact the old one.
+
+### `POST /v1/memory-stores/:id/versions/:v/restore` — restore (new head version from an old one)
+
+`Idempotency-Key` required; `write` scope (mutating POST). Copies version `:v`'s content
+**server-side** into a NEW version for the same `memoryPath` — the restored version
+becomes the live head; history is preserved, nothing is rewritten. Works whether the
+memory is currently live (revert) or deleted (undelete: the path becomes live again).
+Body: none (an empty JSON object is also accepted).
+
+Response `201`: the newly created version
+`{id: "memver_…", memoryPath, contentSha256, redacted: false, createdAt, expiresAt}`
+(same shape as retrieve-a-version; `contentSha256` equals the source version's hash).
+
+- `409 conflict` — the source version's content is gone (redacted, or a deletion
+  tombstone): there is nothing to restore. Per the status policy this is a state
+  conflict (the well-formed request is precluded by a prior redact/delete), not a
+  validation failure — hence `409`/`code: conflict`, matching the redact-head rule
+  above, not `422`.
+- `404 not_found` — version or store absent/archived (or another tenant's).
+
+Additive change (WP-C4.0; powers the console's "memory version history with restore",
+C§9.5) — no existing endpoint or shape changed.
 
 ---
 
@@ -1229,6 +1286,10 @@ Response `201`: `{id: "job_…", name, status: "active", …, createdAt, updated
 
 ### `GET /v1/jobs` / `GET /v1/jobs/:id` — list / retrieve
 
+Archived jobs are invisible on every read: the list always excludes them
+(`?status=archived` matches nothing), and retrieve + `/runs` return `404`.
+The `archive` response is the last time the job is returned.
+
 ### `POST /v1/jobs/:id/pause` — pause
 
 `Idempotency-Key` required. Suppresses scheduled triggers; running sessions continue;
@@ -1299,6 +1360,11 @@ Response `201`:
 
 (Retrieve does NOT return `signingSecret`.)
 
+- `status` is `active` | `disabled` (webhooks are deleted, not archived);
+  `disabledReason` is `null` while the endpoint is active and carries the
+  machine-readable auto-disable reason otherwise (schema:
+  `WebhookStatus` / `Webhook` in `@pi-managed/contracts`).
+
 ### `DELETE /v1/webhooks/:id` — delete
 
 Returns `204`.
@@ -1334,7 +1400,19 @@ Every delivery carries `X-Webhook-Signature`. Verify; reject if invalid or paylo
 `session.thread_terminated`, `session.outcome_evaluation_ended`, `session.updated`,
 `session.deleted`; vault/credential lifecycle (`vault.archived`, `vault.deleted`,
 `vault_credential.archived`, `vault_credential.deleted`, `vault_credential.refresh_failed`);
-job/run events (`job.run_failed`, `job.run_succeeded`, `job.paused`, `job.archived`).
+job/run events (`job.run_failed`, `job.run_succeeded`, `job.paused`, `job.archived`);
+tenant-balance thresholds (saas; `tenant.balance_low`, `tenant.balance_exhausted` — see
+the Billing section).
+
+#### Enriched payload (`data`) — balance thresholds only
+The delivery payload is thin by default (`type`+`id`+`createdAt`). The two
+`tenant.balance_*` events are the exception: they carry a `data` object
+(`{entryId, tenantId, balanceMicros, balanceUsd, thresholdMicros, thresholdUsd,
+lifecycle}`, schema `TenantBalanceEventData` in `@pi-managed/contracts`) because the
+at-crossing balance is not recoverable by a later GET (the live balance keeps moving).
+`entryId` is the causing ledger entry — the STABLE crossing identity, unchanged across
+redelivery; consumers (auto-charge) key idempotency on it. All other event types omit
+`data`.
 
 ---
 
@@ -1374,8 +1452,59 @@ Response `200`:
 values shown are the `pro` defaults). Quota limits enforced at API + scheduler (§27.3);
 per-tenant rollups via `metadata.userId` attribution (§26.2).
 
+### `GET /v1/tenant/usage` — usage over time (day/month buckets)
+
+Tenant-scoped, time-bucketed token usage + USD spend rolled up from
+`usage_records` (console spec §11.5 — powers the tenant dashboard and billing
+views). Query parameters (schema: `TenantUsageParams`):
+
+| Parameter | Type | Default | Notes |
+|---|---|---|---|
+| `granularity` | `day` \| `month` | `day` | UTC-aligned calendar buckets. |
+| `from` | RFC 3339 timestamp | `to` − 30 days (`day`) / − 365 days (`month`) | **Inclusive** lower bound on `recordedAt`. |
+| `to` | RFC 3339 timestamp | now | **Exclusive** upper bound. |
+| `groupBy` | `agent` \| `user` | — | Split each bucket by the session's `agentId`, or by its `metadata.userId` (§26.2). |
+
+`from` must be strictly before `to`, and the span must not exceed **366 days**
+(`day`) or **24 months** (`month`); violations (and unknown enum values) are
+`422 invalid_request`.
+
+Response `200` (schema: `TenantUsageResponse`):
+```json
+{
+  "granularity": "day",
+  "from": "2026-06-17T00:00:00Z",
+  "to": "2026-07-17T00:00:00Z",
+  "groupBy": "agent",
+  "data": [
+    {
+      "bucketStart": "2026-07-01T00:00:00Z",
+      "agentId": "agent_01J…",
+      "inputTokens": 12345,
+      "outputTokens": 6789,
+      "cacheCreationInputTokens": 0,
+      "cacheReadInputTokens": 0,
+      "usdCost": 0.12
+    }
+  ]
+}
+```
+
+- **Not paginated** — the bounded range bounds the series. Buckets with no
+  usage are **omitted**; rows sort by `bucketStart` ascending, then group key.
+- **Buckets are UTC-aligned**: a `day` bucket starts at `00:00:00Z`, a `month`
+  bucket on the first of the month at `00:00:00Z`. A record at `23:59:59Z`
+  lands in that day's bucket; one at `00:00:00Z` in the next.
+- `from`/`to` in the response are the **effective** bounds (defaults applied).
+- `groupBy` is echoed only when requested. `agentId` appears on rows iff
+  `groupBy=agent`; `userId` iff `groupBy=user` — `null` for spend whose
+  session has no `metadata.userId`.
+
 ### `POST /v1/api-keys` — issue an API key (scoped to tenant)
 
+Requires the **`admin`** scope — `403 forbidden` for `read`/`write` keys (see
+Authorization scopes; previously guarded only by the method→scope map, i.e.
+`write`).
 `Idempotency-Key` required (response never stored — replay `409`s, see `Idempotency-Key`).
 Body: `{name, scopes?}` — `scopes` defaults to `["read"]` (see Authorization scopes).
 Returns `201`:
@@ -1390,6 +1519,7 @@ Returns key records **without** the raw key. `404` for revoked keys in retrieve.
 
 ### `DELETE /v1/api-keys/:id` — revoke
 
+Requires the **`admin`** scope — `403 forbidden` for `read`/`write` keys.
 Returns `204`. Sets `revoked_at`; the key immediately stops authenticating.
 
 ### `POST /v1/onboarding/signup` — public self-service sign-up (SaaS)
@@ -1402,11 +1532,225 @@ sign-up for an existing `adminEmail` reuses the tenant and **omits `apiKey`** (n
 credential re-issuance to an unauthenticated caller); the response shape is otherwise
 identical, so it never leaks which admin emails already exist.
 
-### Read-only web console
+In a **billing-enabled** deployment (`BILLING_ENABLED=true`, the saas shape) a fresh
+sign-up also provisions the **$5 trial as a PENDING grant + an email-verification
+token** (console spec §11.1) and sends the verification email. The trial balance is
+**not active** until the tenant verifies (below) — so an unverified tenant cannot start
+work. Solo/team (`BILLING_ENABLED` unset) get no balance mechanics.
 
-A read-only web console (session list, tracing view, usage) is served same-origin at
-`/console` (§26.6). Static assets load without a key; its `/v1/*` calls authenticate with
-an API key entered in the UI.
+### `POST /v1/onboarding/verify-email` — activate the trial grant (public)
+
+**Public/unauthenticated** — the single-use token is the bearer of authority (from the
+verification email). Body `{ "token": "…" }`. Activates the pending $5 trial grant as a
+ledger entry EXACTLY once and moves the tenant `trial → active`. **Idempotent**: a
+replay (already-verified token) returns `{ "verified": true }` and never re-grants.
+`200`. Invalid token → `404 not_found`; expired, never-verified token → `409 conflict`.
+
+### Web console
+
+A web console (session browsing with live SSE traces, steering / interrupts /
+blocking-tool confirmations, fork + outputs download, jobs incl. lifecycle, memory
+stores, and — since console-spec phase 3 — the full tenant-admin management surface:
+agents, environments incl. worker keys/work-stats/drain, vaults & credentials, API
+keys, webhooks, files/skills, tenant usage dashboard, solo/team health widget, and
+saas signup + first-run; since console-spec phase 4 a conversation-shaped session
+lens seeded from `GET /v1/sessions/:id/messages`, with a composer that continues an
+idle session from the browser — `user.message` wakes it; mid-turn follow-ups are
+held client-side because the API answers `409 session_not_idle`, and dispatched at
+the next turn boundary; the layout is usable at phone width — responsive-only by
+decision, no PWA manifest or service worker) is served same-origin at
+`/console` (§26.6, console spec). Static
+assets load without a key. It is a pure `/v1` client (parity rule, console spec §1.2):
+its API calls authenticate via a cookie-backed console session — the API key is
+exchanged once at sign-in for an `HttpOnly` cookie, and what a key's scopes allow in
+the console is exactly what they allow over `curl`. See §"Console support (non-`/v1`)"
+below for the serving contract, security headers, and session endpoints.
+
+---
+
+## Console support (non-`/v1`)
+
+> **Spec:** console spec §3–§4 (extends spec §26.6). These are the ONLY non-`/v1`
+> endpoints the console may call (parity rule, console spec §1.2): everything else the
+> console does goes through the public `/v1` API. Schemas: `@pi-managed/contracts`
+> (`console.ts`).
+
+The backend serves the built console SPA at `/console` and `/console/*`, same-origin
+with `/v1`, via a pre-auth serve hook. Unknown `/console/*` paths (client-side routes)
+serve `index.html` (history-API fallback); asset paths keep extension-based content
+types.
+
+Every `/console*` response — assets, SPA fallbacks, the endpoints below, and their
+errors — carries these security headers:
+
+```
+Content-Security-Policy: default-src 'self'; frame-ancestors 'none'
+X-Content-Type-Options: nosniff
+Referrer-Policy: no-referrer
+```
+
+### `GET /console/config` — deployment presentation (public)
+
+**Public/unauthenticated.** Returns **exactly** these two fields:
+
+```json
+{ "mode": "solo", "onboardingEnabled": false }
+```
+
+- `mode` — `"solo" | "team" | "saas"`. A **presentation concern only**: no `/v1`
+  behavior differs by mode. Source: the `CONSOLE_MODE` env var if set; otherwise
+  derived — `ONBOARDING_ENABLED=true` → `saas`, else `solo`.
+- `onboardingEnabled` — whether `POST /v1/onboarding/signup` is enabled.
+
+The endpoint never exposes versions, instance ids, or any other configuration.
+
+---
+
+## Billing (saas)
+
+> **Spec:** console spec §11 (commercialization). Present only conceptually for saas —
+> a tenant not enrolled in the ledger simply `404`s on `GET /v1/tenant/billing`, which
+> the console reads as "no billing". Prepaid, single-unit (dollars). Schemas:
+> `@pi-managed/contracts` (`billing.ts`). **The console never computes money
+> client-side (§11.9)** — it displays what these routes report.
+>
+> **Unit.** All ledger amounts are integer **micro-dollars** (`micros`): 1 USD =
+> 1_000_000. Amounts are signed (credits positive, debits negative). Each response also
+> carries the server-divided `*Usd` companion the console shows.
+
+### `GET /v1/tenant/billing` — balance + lifecycle + verification state
+
+Returns `{ lifecycle, balanceMicros, balanceUsd, verified, verificationRequired }`.
+`lifecycle` is `trial | active | suspended` (there is no `past_due` — prepaid cannot be
+past due). `verificationRequired` is `true` for an unverified trial. `404 not_found`
+when the tenant is not enrolled in the ledger. `read` scope.
+
+### `GET /v1/tenant/billing/ledger` — append-only ledger history
+
+Cursor-paginated (newest first). Each entry:
+`{ id, kind, amountMicros, amountUsd, balanceAfterMicros, balanceAfterUsd, source,
+createdAt }`; `kind` is `grant | topup | debit | adjustment`. `read` scope.
+
+### `POST /v1/tenant/billing/verification/resend` — resend the verification email
+
+Regenerates the verification token (invalidating the previous link) and re-sends it via
+the email seam (console spec §11.1). No-op once verified. Returns `202`
+`{ "sent": boolean }` (schema `VerificationResendResponse`) — `sent:false` is a benign
+no-op (already verified, or no email on file), not an error; it never reveals which.
+`write` scope.
+
+### Adapter-integration routes (checkout / portal / auto-charge)
+
+> **Status: implemented (WP-C5.3 F4).** These four routes are the console↔payment-engine
+> link-out surface (console spec §11.7–11.8). They are a thin, **SDK-free** `/v1` proxy
+> in `packages/backend`: the tenant is authenticated here, then the request is FORWARDED
+> to the `packages/billing-adapter` process's internal surface over the machine channel
+> (`BILLING_ADAPTER_URL` + the shared `BILLING_PROVISION_TOKEN`, presented as a
+> constant-time `Bearer`). The proxy relays a *URL string* (checkout/portal) or the
+> auto-charge settings object — **no payment SDK ever enters `packages/backend`**; the
+> Stripe SDK stays behind the adapter's engine seam. **When `BILLING_ADAPTER_URL` is
+> unset every route `404`s, and the console renders the no-adapter state — money controls
+> absent, everything else works (§11.8).** The console treats `404` here as "no adapter"
+> (it keys off the status), never as an error. An adapter `4xx` surfaces with its status
+> (e.g. `409` when no saved payment method exists for the portal); an adapter `401`/`5xx`
+> or an unreachable adapter collapses to `502` (an infra fault, never the tenant's). No
+> money math and no ledger write happen in these routes — money still enters the ledger
+> only via the webhook → credit-surface path. Shapes: `@pi-managed/contracts`
+> (`billing.ts`). Card data never touches the console (§11.9).
+
+- `GET /v1/tenant/billing/auto-charge` — current auto-charge config
+  (`AutoChargeConfig`; opt-in, off by default). Also the console's adapter-presence
+  probe: `200` ⇒ adapter configured (show money controls); `404` ⇒ no adapter.
+  `read` scope.
+- `PATCH /v1/tenant/billing/auto-charge` — update the toggle / threshold / amount
+  (`AutoChargeUpdate`; USD figures, the adapter converts to micros). Returns the new
+  `AutoChargeConfig`. `write` scope.
+- `POST /v1/tenant/billing/checkout` — issue a hosted top-up checkout URL
+  (`CheckoutSessionRequest` → `BillingHostedLink`); the console redirects to it.
+  `write` scope. The reference (Stripe) adapter issues a fixed-amount hosted page, so
+  it requires an explicit `amountUsd` (the console's top-up dialog always sends one);
+  an omitted amount is `422`.
+- `POST /v1/tenant/billing/portal` — issue a hosted receipts / payment-method portal
+  URL (`BillingHostedLink`); the console redirects to it. `write` scope.
+
+### Suspension (fail-soft, §11.1)
+
+In a billing-enabled deployment, a tenant at balance ≤ 0 (unverified trial, or drained)
+**cannot start new work** — `POST /v1/sessions`, `POST /v1/sessions/:id/fork`, and a
+turn-starting `user.message` on `POST /v1/sessions/:id/events` return
+**`402 budget_exhausted`** with `details.reason` = `trial_unverified` |
+`balance_exhausted`. **Reads are never affected.** Running work stops via the existing
+`budget_exhausted` machinery. The gate reads only local ledger state; nothing in the
+request path calls a payment engine. Solo/team (`BILLING_ENABLED` unset) are never
+gated. The machine credit-surface the billing adapter uses to top up the ledger is an
+internal channel — see `docs/internal-contracts.md`, not a `/v1` route.
+
+### Metering export (§11.4)
+
+With `BILLING_SINK=webhook`, the backend posts **aggregated, time-bucketed** usage to
+an operator-configured billing endpoint (HTTPS, HMAC-signed with the same
+`X-Webhook-Signature` scheme, at-least-once). Usage is summed per tenant per wall-clock
+bucket (`BILLING_METERING_BUCKET_MS`, default 60 s) into ONE event — **never per-turn**.
+Schema `MeteringEvent` (`@pi-managed/contracts`):
+`{ idempotencyKey, tenantId, bucketStart, bucketEnd, requestCount, inputTokens,
+outputTokens, cacheCreationInputTokens, cacheReadInputTokens, totalTokens, usdCost }`.
+Recipients dedup on `idempotencyKey` (stable per `(tenant, bucket)`, also the
+`X-Metering-Id` header). This is an operator↔operator export seam, not a `/v1` route.
+
+### Balance-threshold events (§11.6)
+
+Webhook event types `tenant.balance_low` (threshold `BILLING_LOW_BALANCE_THRESHOLD_MICROS`,
+default $2) and `tenant.balance_exhausted` fire when a usage debit **crosses** the line —
+exactly once per crossing, never re-fired on a debit already below it (`balance_low` fires
+only while the balance stays > 0; a debit straight to ≤ 0 fires only `balance_exhausted`).
+They are enqueued to the tenant's own webhooks (cross-tenant isolated) and carry the
+`TenantBalanceEventData` `data` payload (above). Consumed alike by the console banner,
+email, and the auto-charge engine. The payload's `entryId` (the causing ledger debit)
+is the crossing's stable identity: a consumer that acts on the event — the auto-charge
+engine charges the saved card — MUST derive its idempotency key from `entryId`, so a
+re-delivery (at-least-once, or a metering re-flush) triggers at most one action. The
+emit is itself idempotent per crossing: a debit that committed but whose emit failed is
+re-emitted on the metering retry under a stable, entry-derived event id, so the webhook
+delivery is deduped and the crossing fires exactly once and is never lost.
+
+### Console sessions
+
+> **Spec:** console spec §4. Implemented (WP-C1.2). Schemas: `@pi-managed/contracts`
+> (`ConsoleSessionCreate`, `ConsoleSessionCreateResponse`, `ConsoleSessionInfo`).
+
+The key⇄cookie exchange behind the console's sign-in, so the browser never holds the
+API key in JavaScript-readable storage: the key is exchanged once for a server-side
+session bound to an `HttpOnly` cookie (`pi_console_session`). The raw session token is
+never stored server-side — only its SHA-256 hash (table `console_sessions`, see
+`db-schema.md`).
+
+- `POST /console/session` — **public** sign-in. Body `{apiKey}` (**write-only** —
+  never echoed in any response). The key is validated through the same path as bearer
+  auth; on success returns `201` with `{scopes, tenant: {id, name}}` and sets the
+  cookie `pi_console_session=<token>; HttpOnly; Secure; SameSite=Strict; Path=/`.
+  Invalid key → `401` standard envelope. Malformed body → `422`.
+- `GET /console/session` — session info for the current cookie (app boot):
+  `{scopes, tenant: {id, name}, expiresAt}`. `401` if no/invalid/expired cookie.
+- `DELETE /console/session` — sign-out: destroys the server-side record and clears
+  the cookie. Returns `204`. Requires the CSRF header (below); `401` without a cookie.
+
+**Cookie auth on `/v1`.** Requests carrying the console-session cookie and **no**
+`Authorization` header authenticate as the underlying key — same scopes, same rate
+limits, same audit identity. An `Authorization` header, when present, **wins** and is
+handled by bearer auth: an invalid, malformed, or non-`Bearer` header (the scheme is
+matched case-sensitively) is `401` even alongside a valid cookie — the cookie is never
+a fallback for a rejected credential.
+
+**CSRF.** Every mutating request (`POST`/`PUT`/`PATCH`/`DELETE`) authenticated by
+cookie must carry the custom header `X-Console-Csrf: 1`, else `403` standard envelope.
+Bearer-authenticated requests are exempt; `POST /console/session` itself is exempt (it
+is the login).
+
+**TTL.** Sessions expire server-side with a **sliding** TTL — each authenticated use
+re-extends it (throttled to ~once/min per session). Defaults by console mode: `solo`
+30 days, `team` 7 days, `saas` 24 hours; `CONSOLE_SESSION_TTL` (seconds) overrides
+all. Revoking the underlying API key invalidates its console sessions on next use;
+expired rows are swept opportunistically on sign-in.
 
 ---
 
@@ -1424,7 +1768,9 @@ Management routes (org API key):
   host (§10.4).
 - `POST /v1/environments/:id/worker-keys` — issue an environment-scoped worker key
   (`self_hosted_worker:<envId>` scope, valid only for the worker routes below). Org-key
-  auth. Returns `201`; the secret is shown once.
+  auth requiring the `write` scope (not `admin`: the minted key carries only the narrow
+  worker scope, so this is ordinary environment management, not key management).
+  Returns `201`; the secret is shown once.
 
 Worker routes (worker key):
 

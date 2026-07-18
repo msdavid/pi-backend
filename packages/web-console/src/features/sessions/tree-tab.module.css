@@ -1,0 +1,96 @@
+.heading {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-title);
+}
+
+.heading + .heading,
+.lineage + .heading,
+.logTree + .heading,
+.note + .heading {
+  margin-top: var(--space-5);
+}
+
+.note {
+  margin: 0 0 var(--space-3);
+  color: var(--color-fg-muted);
+}
+
+/* --- Fork lineage (nested lists, one branch per level) -------------------- */
+
+.lineage,
+.branch {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.lineage {
+  margin-bottom: var(--space-3);
+}
+
+.branch {
+  margin-top: var(--space-1);
+  padding-left: var(--space-4);
+  border-left: 1px solid var(--color-border);
+}
+
+.node {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+}
+
+.currentNode > .node {
+  background: var(--color-surface);
+  border-radius: var(--radius-sm);
+  padding-inline: var(--space-2);
+}
+
+.nodeTag {
+  font-size: var(--font-size-small);
+  color: var(--color-fg-muted);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-1);
+  white-space: nowrap;
+}
+
+.nodeTitle {
+  color: var(--color-fg-muted);
+  overflow-wrap: anywhere;
+}
+
+/* --- Log tree (flat list, depth via indentation) -------------------------- */
+
+.logTree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.logNode {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.logType {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono);
+}
+
+.logId {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-small);
+  color: var(--color-fg-muted);
+  overflow-wrap: anywhere;
+}
+
+.forkPoint {
+  font-size: var(--font-size-small);
+  color: var(--status-warning-fg);
+  white-space: nowrap;
+}

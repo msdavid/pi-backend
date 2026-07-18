@@ -58,6 +58,18 @@ describe("loadConfig precedence", () => {
     expect(cfg.logLevel).toBe("error"); // file retained
   });
 
+  it("CONSOLE_MODE passes through from env and defaults to unset (derived downstream)", () => {
+    expect(loadConfig({ env: {} }).consoleMode).toBeUndefined();
+    expect(loadConfig({ env: { CONSOLE_MODE: "team" } }).consoleMode).toBe("team");
+    expect(loadConfig({ env: {}, file: { consoleMode: "saas" } }).consoleMode).toBe("saas");
+  });
+
+  it("CONSOLE_SESSION_TTL passes through from env as seconds and defaults to unset", () => {
+    expect(loadConfig({ env: {} }).consoleSessionTtl).toBeUndefined();
+    expect(loadConfig({ env: { CONSOLE_SESSION_TTL: "3600" } }).consoleSessionTtl).toBe(3600);
+    expect(loadConfig({ env: {}, file: { consoleSessionTtl: 60 } }).consoleSessionTtl).toBe(60);
+  });
+
   it("OTEL fields pass through from env", () => {
     const cfg = loadConfig({
       env: {
@@ -109,6 +121,24 @@ describe("loadConfig fatal errors", () => {
   it("exits with code 1 on an unknown sandbox runtime", () => {
     expect(() =>
       withFatalCaptured(() => loadConfig({ env: { SANDBOX_RUNTIME: "maybe" } })),
+    ).toThrow(/__exit_1__/);
+  });
+
+  it("exits with code 1 on an unknown console mode", () => {
+    expect(() =>
+      withFatalCaptured(() => loadConfig({ env: { CONSOLE_MODE: "enterprise" } })),
+    ).toThrow(/__exit_1__/);
+  });
+
+  it("exits with code 1 on a non-numeric CONSOLE_SESSION_TTL (NaN is rejected, not silent)", () => {
+    expect(() =>
+      withFatalCaptured(() => loadConfig({ env: { CONSOLE_SESSION_TTL: "abc" } })),
+    ).toThrow(/__exit_1__/);
+  });
+
+  it("exits with code 1 on a non-positive CONSOLE_SESSION_TTL", () => {
+    expect(() =>
+      withFatalCaptured(() => loadConfig({ env: { CONSOLE_SESSION_TTL: "0" } })),
     ).toThrow(/__exit_1__/);
   });
 });

@@ -99,7 +99,7 @@ interface PendingDeliveryRow {
   webhook_id: string;
   event_id: string;
   event_type: string;
-  payload: { type: string; id: string; createdAt: string };
+  payload: { type: string; id: string; createdAt: string; data?: Record<string, unknown> };
   attempt: number;
 }
 
@@ -211,6 +211,9 @@ export class WebhookDispatcher implements WebhookSink {
       type: event.type,
       id: event.id,
       createdAt: event.createdAt,
+      // Carried verbatim only for event types that set it (balance thresholds,
+      // §11.6); the thin default omits it so existing payloads are byte-identical.
+      ...(event.data ? { data: event.data } : {}),
     };
     await tenantScopedQuery(
       this.pool,

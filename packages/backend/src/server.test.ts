@@ -55,6 +55,37 @@ describe("createApp", () => {
     await app.close();
   });
 
+  it("serves GET /console/config with the console CSP, not the API CSP (WP-C1.1, C§3.2/§3.4)", async () => {
+    const app = await createApp({
+      config: testConfig({ onboardingEnabled: true }),
+      logger: silentLogger,
+    });
+    const res = await app.inject({ method: "GET", url: "/console/config" });
+    expect(res.statusCode).toBe(200);
+    // Exactly the two fields; mode derived from onboardingEnabled → saas.
+    expect(res.json()).toEqual({ mode: "saas", onboardingEnabled: true });
+    // The console hook's stricter CSP survives the API-wide onSend hook.
+    expect(res.headers["content-security-policy"]).toBe(
+      "default-src 'self'; frame-ancestors 'none'",
+    );
+    expect(res.headers["x-content-type-options"]).toBe("nosniff");
+    expect(res.headers["referrer-policy"]).toBe("no-referrer");
+    // Non-console responses keep the API CSP (script-src etc.).
+    const health = await app.inject({ method: "GET", url: "/healthz" });
+    expect(String(health.headers["content-security-policy"])).toContain("script-src 'self'");
+    await app.close();
+  });
+
+  it("CONSOLE_MODE override beats the derived console mode (WP-C1.1)", async () => {
+    const app = await createApp({
+      config: testConfig({ consoleMode: "team", onboardingEnabled: true }),
+      logger: silentLogger,
+    });
+    const res = await app.inject({ method: "GET", url: "/console/config" });
+    expect(res.json()).toEqual({ mode: "team", onboardingEnabled: true });
+    await app.close();
+  });
+
   it("maps ApiError to ErrorEnvelope", async () => {
     const app = await makeApp();
     app.get("/throw", async () => {

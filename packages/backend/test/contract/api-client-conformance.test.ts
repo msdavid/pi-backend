@@ -699,6 +699,16 @@ d("R3.2 contract conformance: ManagedApiClient ↔ real backend", () => {
     60_000,
   );
 
+  it("consoleSessionUrl targets the origin this suite is actually running against (WP-C2.6)", () => {
+    // No wire call to conform (it derives a browser deep link, console-spec
+    // §1.4) — but the derivation must point at the real backend origin under
+    // test, i.e. the same host that serves `/console` (serving contract
+    // covered by `src/api/console.test.ts`).
+    expect(client.consoleSessionUrl("sess_01TEST")).toBe(
+      `${baseUrl}/console/sessions/sess_01TEST`,
+    );
+  });
+
   it("covers EVERY public method of ManagedApiClient (no method may ship untested)", () => {
     // `private` is compile-time only — these are the runtime-visible internals.
     const internals = new Set([
@@ -713,6 +723,7 @@ d("R3.2 contract conformance: ManagedApiClient ↔ real backend", () => {
       .sort();
     const covered = new Set(cases.map((c) => c.method));
     covered.add("streamSession"); // exercised by the SSE tests below.
+    covered.add("consoleSessionUrl"); // no wire call — the URL test above.
     const uncovered = publicMethods.filter((m) => !covered.has(m));
     expect(uncovered, `uncovered ManagedApiClient methods: ${uncovered.join(", ")}`).toEqual([]);
   });

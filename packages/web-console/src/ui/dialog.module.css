@@ -1,0 +1,52 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 10vh var(--space-4) var(--space-4);
+  /* Dynamic viewport units (§10.5): with the on-screen keyboard up the
+     visual viewport shrinks — dvh keeps the panel reachable. */
+  padding: 10dvh var(--space-4) var(--space-4);
+  background: var(--color-backdrop);
+  z-index: 100;
+}
+
+.panel {
+  width: 100%;
+  max-width: 28rem;
+  max-height: 80vh;
+  max-height: 80dvh;
+  overflow-y: auto;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  color: var(--color-fg);
+  box-shadow: var(--shadow-overlay);
+}
+
+.panel:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.title {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+}
+
+/* Phone width (§10.5): less dead space above the panel, full use of the
+   narrow viewport (the 28rem max-width already yields to `width: 100%`). */
+@media (max-width: 720px) {
+  .backdrop {
+    padding-top: var(--space-4);
+  }
+
+  .panel {
+    max-height: calc(100vh - 2 * var(--space-4));
+    max-height: calc(100dvh - 2 * var(--space-4));
+  }
+}

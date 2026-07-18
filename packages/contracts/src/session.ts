@@ -7,7 +7,7 @@
  */
 
 import { z } from "zod";
-import { Metadata, Timestamp, Budget, Usage, StopReason } from "./common.js";
+import { Metadata, Timestamp, Budget, Usage, StopReason, ListParams } from "./common.js";
 import { sessId, envId, agentId } from "./ids.js";
 import { SessionAgentField, McpServer, ToolsConfig } from "./agent.js";
 
@@ -43,6 +43,17 @@ export type SessionForkRequest = z.infer<typeof SessionForkRequest>;
 
 // --- Session resource -------------------------------------------------------
 
+/**
+ * Cumulative usage rollup embedded on the session resource (list + detail) —
+ * the same shape as `GET /v1/sessions/:id/usage` (`SessionUsageResponse`).
+ * `usdCost` is schema-optional because it is a later additive field; the
+ * server always sends it (the `usage_records` SUM for the session).
+ */
+export const SessionUsage = Usage.extend({
+  usdCost: z.number().nonnegative().optional(),
+});
+export type SessionUsage = z.infer<typeof SessionUsage>;
+
 export const Session = z.object({
   id: sessId,
   agentId: agentId,
@@ -52,7 +63,7 @@ export const Session = z.object({
   status: SessionStatus,
   stopReason: StopReason.nullable(),
   budget: Budget.optional(),
-  usage: Usage,
+  usage: SessionUsage,
   vaultIds: z.array(z.string().min(1)),
   resources: z.array(z.string()),
   metadata: Metadata.optional(),
@@ -62,6 +73,19 @@ export const Session = z.object({
   forkedFromSessionId: sessId.nullable(),
 });
 export type Session = z.infer<typeof Session>;
+
+/**
+ * Query params for `GET /v1/sessions` (api-reference §"GET /v1/sessions — list").
+ * All filters are combinable — e.g. `?status=idle&stopReason=requires_action`
+ * lists every session awaiting a blocking action (console C§7.5).
+ */
+export const SessionListParams = ListParams.extend({
+  status: SessionStatus.optional(),
+  stopReason: StopReason.optional(),
+  agentId: agentId.optional(),
+  environmentId: envId.optional(),
+});
+export type SessionListParams = z.infer<typeof SessionListParams>;
 
 // --- Usage (cumulative) -----------------------------------------------------
 

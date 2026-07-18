@@ -1,0 +1,71 @@
+.title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-title);
+}
+
+.microcopy {
+  margin: 0;
+  max-width: 60ch;
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-small);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.probe {
+  margin: var(--space-5) 0 var(--space-2);
+  font-size: var(--font-size-section);
+  font-weight: var(--font-weight-medium);
+}
+
+.line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono);
+}
+
+/* Probe-state chips — same shape as the ui-kit status chip, toned with the
+ * shared status tokens (up → success, down → danger). */
+.up,
+.down {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.up::before,
+.down::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: currentColor;
+}
+
+.up {
+  color: var(--status-success-fg);
+  background: var(--status-success-bg);
+}
+
+.down {
+  color: var(--status-danger-fg);
+  background: var(--status-danger-bg);
+}

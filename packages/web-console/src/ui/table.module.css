@@ -1,0 +1,62 @@
+/* Scroll container (WP-C4.3; console-spec §10.5): a dense table narrower
+   than its columns scrolls INSIDE this region — the page itself never
+   scrolls horizontally. Focusable + named so keyboard users can scroll it
+   (axe: scrollable-region-focusable). */
+.scroll {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-body);
+}
+
+/* Visually hidden, still announced (accessible summary). */
+.caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.th {
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-fg-muted);
+  white-space: nowrap;
+}
+
+.tr {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.interactive {
+  cursor: pointer;
+}
+
+.interactive:hover {
+  background: var(--color-surface);
+}
+
+.interactive:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.td {
+  padding: var(--space-1) var(--space-2);
+  color: var(--color-fg);
+}
+
+.right {
+  text-align: right;
+}

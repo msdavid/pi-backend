@@ -139,6 +139,15 @@ export class ManagedApiClient {
     this.streamTimeoutMs = opts.streamTimeoutMs ?? 1_800_000;
   }
 
+  /**
+   * Console deep link for a session — `<backendUrl>/console/sessions/<id>`
+   * (console-spec §1.4: surfaces deep-link to each other). Derived from the
+   * configured backend URL; no extra configuration.
+   */
+  consoleSessionUrl(sessionId: string): string {
+    return new URL(`/console/sessions/${sessionId}`, this.opts.backendUrl).toString();
+  }
+
   // --- REST -----------------------------------------------------------------
 
   /** `GET /v1/tenant` — tenant info (used by `/remote:config` ping). */

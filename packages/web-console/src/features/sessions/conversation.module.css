@@ -1,0 +1,193 @@
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  /* Conversation-width measure; phone-width layout proper is WP-C4.3. */
+  max-width: 48rem;
+}
+
+.message {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+/* User messages sit right-aligned and visually distinct (§10.1). */
+.user {
+  align-items: flex-end;
+  align-self: flex-end;
+  max-width: 85%;
+}
+
+.role {
+  font-size: var(--font-size-small);
+  color: var(--color-fg-muted);
+}
+
+.bubble {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+}
+
+.body {
+  min-width: 0;
+  align-self: stretch;
+}
+
+.text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.text + .text,
+.text + .code,
+.code + .text,
+.code + .code {
+  margin-top: var(--space-2);
+}
+
+.code {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono);
+  overflow-x: auto;
+}
+
+/* Compact tool line: internals de-emphasized, one click away (§5a). */
+.toolLine {
+  gap: 0;
+}
+
+.toolSummary {
+  font-size: var(--font-size-small);
+  color: var(--color-fg-muted);
+}
+
+.toolError {
+  color: var(--color-danger);
+}
+
+.note {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-small);
+  color: var(--color-fg-muted);
+}
+
+/* --- WP-C4.2 composer + turn lifecycle (§10.1–10.4) ----------------------- */
+
+.composerArea {
+  margin-top: var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 48rem;
+}
+
+.composerForm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.composerInput {
+  flex: 1;
+  min-width: 16rem;
+}
+
+.interrupt {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.queueList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.queueChip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+}
+
+.queueText {
+  overflow-wrap: anywhere;
+}
+
+.queueRemove,
+.handBackCopy {
+  font: inherit;
+  font-size: var(--font-size-small);
+  color: var(--color-accent);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.queueRemove:focus-visible,
+.handBackCopy:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
+}
+
+/* §10.4 hand-back footer: one muted line under the composer. */
+.handBack {
+  margin: var(--space-2) 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-small);
+  color: var(--color-fg-muted);
+  max-width: 48rem;
+}
+
+.handBackCommand {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-1);
+}
+
+/* Phone width (WP-C4.3; console-spec §10.5): the message field takes the
+   full row so the on-screen keyboard gets a usable target; Send/Queue and
+   Interrupt wrap below it. */
+@media (max-width: 720px) {
+  .composerInput {
+    min-width: 100%;
+  }
+
+  .composerArea {
+    padding: var(--space-3);
+  }
+}

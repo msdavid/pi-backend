@@ -3,23 +3,30 @@
  *
  * - `GET /v1/tenant` — current tenant info + a zeroed quota-usage stub (§27.3
  *   rollups land in a later WP).
+ * - `GET /v1/tenant/usage` — time-bucketed usage rollup (WP-C3.0, console
+ *   spec §11.5).
  * - `POST /v1/api-keys` — issue a key (`Idempotency-Key` required); raw key
- *   shown once.
+ *   shown once. Requires the `admin` scope.
  * - `GET /v1/api-keys` — list keys (no raw key).
  * - `DELETE /v1/api-keys/:id` — revoke; `204` on success, `404` if absent
- *   (or in another tenant — same response to avoid leakage).
+ *   (or in another tenant — same response to avoid leakage). Requires the
+ *   `admin` scope.
  *
  * All routes rely on the auth middleware having set `request.tenantCtx`.
  */
 
 import type { FastifyPluginAsync, FastifyRequest, FastifyReply } from "fastify";
-import { requireScopeByMethod } from "./middleware/scope.js";
+import { requireScope, requireScopeByMethod } from "./middleware/scope.js";
 import { type Pool } from "../infra/db/index.js";
 import { ApiError } from "../domain/errors.js";
 import { getTenant } from "../domain/tenant/tenant.js";
 import { issueApiKey, listApiKeys, revokeApiKey } from "../domain/tenant/api-key.js";
 import { getCurrentUsage, getQuotaPlanForTenant } from "../domain/quota/index.js";
-import { ApiKeyCreate } from "@pi-managed/contracts";
+import {
+  getTenantUsageTimeseries,
+  resolveTenantUsageRange,
+} from "../domain/usage/usage-timeseries.js";
+import { ApiKeyCreate, TenantUsageParams } from "@pi-managed/contracts";
 
 export interface TenantRoutesOptions {
   pool: Pool;
@@ -39,9 +46,11 @@ export const tenantRoutes: FastifyPluginAsync<TenantRoutesOptions> = async (
   opts,
 ) => {
   // R0.1: enforce API-key scopes on every route in this plugin (GET/HEAD → read,
-  // mutating → write; `admin` passes all; worker keys are denied here). Note the
-  // signup bootstrap key is `["admin"]`, so it can mint further keys; a `read`
-  // key cannot.
+  // mutating → write; `admin` passes all; worker keys are denied here). The
+  // key-management mutations (POST/DELETE /v1/api-keys) additionally carry a
+  // route-level `requireScope("admin")` guard — see below. Note the signup
+  // bootstrap key is `["admin"]`, so it can mint further keys; `read`/`write`
+  // keys cannot.
   app.addHook("preHandler", requireScopeByMethod);
   // GET /v1/tenant — current tenant info + real quota usage vs plan limits
   // (§27.3, WP-4.4). `quotaUsage` is the live rollup from Postgres; `quotaLimits`
@@ -67,12 +76,54 @@ export const tenantRoutes: FastifyPluginAsync<TenantRoutesOptions> = async (
     });
   });
 
+  // GET /v1/tenant/usage — tenant-scoped, time-bucketed usage rollup (WP-C3.0,
+  // console spec §11.5). UTC day/month calendar buckets over usage_records,
+  // optionally split by agent or by the session's metadata.userId (§26.2).
+  app.get("/v1/tenant/usage", async (req: FastifyRequest, reply: FastifyReply) => {
+    const ctx = requireCtx(req);
+    const parsed = TenantUsageParams.safeParse(req.query ?? {});
+    if (!parsed.success) {
+      throw new ApiError(
+        422,
+        "invalid_request",
+        `invalid usage query: ${parsed.error.issues.map((i) => i.message).join("; ")}`,
+      );
+    }
+    const granularity = parsed.data.granularity ?? "day";
+    const groupBy = parsed.data.groupBy;
+    const { from, to } = resolveTenantUsageRange(
+      granularity,
+      parsed.data.from,
+      parsed.data.to,
+    );
+    const data = await getTenantUsageTimeseries(opts.pool, ctx, {
+      granularity,
+      from,
+      to,
+      groupBy,
+    });
+    // `from`/`to` echo the effective bounds; `groupBy` only when requested.
+    return reply.status(200).send({
+      granularity,
+      from: from.toISOString(),
+      to: to.toISOString(),
+      ...(groupBy ? { groupBy } : {}),
+      data,
+    });
+  });
+
   // POST /v1/api-keys — issue a key (Idempotency-Key required; raw key shown once).
   // `idempotencyNoStore` opts this route out of response-body capture: the raw
   // `pmb_live_` key must never be persisted in idempotency_keys (§25.1, §8).
+  // Key management is `admin`-only (api-reference §"Authorization scopes"):
+  // without this guard a `write` key could mint itself an `admin` key
+  // (privilege escalation), since issued scopes are caller-chosen.
   app.post(
     "/v1/api-keys",
-    { config: { idempotencyNoStore: true } },
+    {
+      config: { idempotencyNoStore: true },
+      preHandler: requireScope("admin"),
+    },
     async (req: FastifyRequest, reply: FastifyReply) => {
     const ctx = requireCtx(req);
     const idempotencyKey = req.headers["idempotency-key"];
@@ -110,8 +161,10 @@ export const tenantRoutes: FastifyPluginAsync<TenantRoutesOptions> = async (
   });
 
   // DELETE /v1/api-keys/:id — revoke (204); 404 if absent / wrong tenant.
+  // `admin`-only, like issuance: revoking keys is key management.
   app.delete(
     "/v1/api-keys/:id",
+    { preHandler: requireScope("admin") },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = requireCtx(req);
       const { id } = req.params as { id: string };

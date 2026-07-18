@@ -14,6 +14,7 @@
  * - `GET    /v1/memory-stores/:id/versions`         — list versions (audit trail).
  * - `GET    /v1/memory-stores/:id/versions/:v`      — retrieve a version.
  * - `POST   /v1/memory-stores/:id/versions/:v/redact` — redact (`Idempotency-Key`).
+ * - `POST   /v1/memory-stores/:id/versions/:v/restore` — restore (`Idempotency-Key`, WP-C4.0).
  *
  * `:m` (memory) and `:v` (version) are path params; `:m` is the memory's
  * `path`, percent-encoded by the client when it contains `/`.
@@ -34,6 +35,7 @@ import {
   MemoryCreate,
   MemoryUpdate,
   MemoryVersionRedactRequest,
+  MemoryVersionRestoreRequest,
 } from "@pi-managed/contracts";
 import {
   createMemoryStore,
@@ -49,6 +51,7 @@ import {
   listMemoryVersions,
   getMemoryVersion,
   redactVersion,
+  restoreVersion,
 } from "../domain/memory/index.js";
 
 export interface MemoryRoutesOptions {
@@ -270,6 +273,23 @@ export const memoryRoutes: FastifyPluginAsync<MemoryRoutesOptions> = async (
       }
       const version = await redactVersion(pool, ctx, objectStore, id, v);
       return reply.status(200).send(version);
+    },
+  );
+
+  // POST /v1/memory-stores/:id/versions/:v/restore — restore (new head version
+  // from an old version's content; WP-C4.0, C§9.5).
+  app.post(
+    "/v1/memory-stores/:id/versions/:v/restore",
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const ctx = requireCtx(req);
+      requireIdempotencyKey(req);
+      const { id, v } = req.params as { id: string; v: string };
+      const parsed = MemoryVersionRestoreRequest.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        throw new ApiError(422, "invalid_request", zodMessage(parsed.error.issues));
+      }
+      const version = await restoreVersion(pool, ctx, objectStore, id, v);
+      return reply.status(201).send(version);
     },
   );
 };

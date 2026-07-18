@@ -1,0 +1,58 @@
+.viewer {
+  font-size: var(--font-size-body);
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-fg);
+  font-family: var(--font-body);
+  font-size: var(--font-size-small);
+  cursor: pointer;
+}
+
+.toggle:hover {
+  background: var(--color-surface);
+}
+
+.toggle:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
+}
+
+.chevron {
+  color: var(--color-fg-muted);
+  transition: transform 120ms ease; /* state change only — no decorative motion */
+}
+
+.open {
+  transform: rotate(90deg);
+}
+
+.label {
+  font-weight: var(--font-weight-medium);
+}
+
+.summary {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono);
+  color: var(--color-fg-muted);
+}
+
+.payload {
+  margin: var(--space-1) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-fg);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono);
+  line-height: var(--line-height-body);
+  overflow-x: auto;
+}

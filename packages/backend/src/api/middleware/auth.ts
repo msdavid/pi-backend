@@ -17,19 +17,53 @@
  * `onRequest` auth hook — the `preHandler` rate limiter runs too late to stop a
  * flood of `<live key id> + garbage secret` requests, each of which would
  * otherwise force a full argon2 verify before the limiter ever sees it.
+ *
+ * WP-C1.2 (console spec §4.3): when NO `Authorization` header is present but
+ * the console-session cookie is, the hook resolves the session to the same
+ * {@link TenantCtx} the underlying key would produce — same scopes, same rate
+ * limits, same audit identity. ANY present `Authorization` header wins: it is
+ * handled by the bearer path, so a bad, non-`Bearer`, or malformed header is a
+ * 401 even alongside a valid cookie — exactly the pre-cookie behavior — and a
+ * stray credential is never silently ignored in favor of the cookie identity.
+ * Cookie-authenticated MUTATING requests must carry `X-Console-Csrf: 1` or are
+ * rejected 403 (§4.5); bearer requests are exempt.
  */
 
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { type Pool, type TenantCtx } from "../../infra/db/index.js";
 import { verifyApiKey } from "../../domain/tenant/api-key.js";
+import {
+  CONSOLE_SESSION_TTL_DEFAULTS,
+  resolveConsoleSession,
+} from "../../domain/tenant/console-session.js";
+import {
+  CONSOLE_CSRF_HEADER,
+  CONSOLE_SESSION_PATH,
+  consoleSessionTokenFrom,
+} from "../console-session.js";
+import { BILLING_CREDIT_PATH } from "../billing-internal.js";
 import { ApiError } from "../../domain/errors.js";
 
-/** Paths that skip authentication (liveness + readiness probes + the public sign-up route). */
+/**
+ * Paths that skip authentication: liveness/readiness probes, the public
+ * sign-up route, and the console-session routes (WP-C1.2 — POST is the login;
+ * GET/DELETE self-authenticate via the cookie in `api/console-session.ts`).
+ */
 export const PUBLIC_PATHS = new Set<string>([
   "/healthz",
   "/readyz",
   "/v1/onboarding/signup",
+  // WP-C5.1: email verification is clicked by an unauthenticated browser (token
+  // is the bearer of authority); the machine credit-surface does its OWN
+  // constant-time machine-bearer auth (NOT a tenant key), so both bypass the
+  // tenant bearer-auth hook here.
+  "/v1/onboarding/verify-email",
+  BILLING_CREDIT_PATH,
+  CONSOLE_SESSION_PATH,
 ]);
+
+/** Methods that change state — cookie-authed requests need the CSRF header (§4.5). */
+const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 // Augment FastifyRequest with the resolved tenant context (available to every
 // route handler after this hook runs).
@@ -132,17 +166,75 @@ export class FailedAuthThrottle {
   }
 }
 
+export interface AuthHandlerOptions {
+  /**
+   * Console-session sliding TTL in seconds (console spec §4.6) — used to
+   * re-extend `expires_at` when a request authenticates via the cookie.
+   * `server.ts` passes `resolveConsoleSessionTtlSeconds(config)`; the default
+   * mirrors the config defaults (onboarding off → `solo` → 30 days).
+   */
+  consoleSessionTtlSeconds?: number;
+}
+
 /**
  * Build the auth hook bound to a DB pool. The pool is required: auth resolves a
  * key by reading its argon2id hash from `api_keys`. One {@link
  * FailedAuthThrottle} is created per handler (i.e. per app instance).
  */
-export function createAuthHandler(pool: Pool): AuthHook {
+export function createAuthHandler(
+  pool: Pool,
+  opts: AuthHandlerOptions = {},
+): AuthHook {
   const throttle = new FailedAuthThrottle();
+  const consoleSessionTtlSeconds =
+    opts.consoleSessionTtlSeconds ?? CONSOLE_SESSION_TTL_DEFAULTS.solo;
   return async function authHandler(req, _reply): Promise<void> {
-    if (PUBLIC_PATHS.has(req.url)) return;
+    // Match public paths on the pathname only (same query split as the console
+    // serve hook): `POST /console/session?redirect=1` is still the login.
+    if (PUBLIC_PATHS.has(req.url.split("?")[0])) return;
     const header = req.headers.authorization;
-    if (!header || !header.startsWith("Bearer ")) {
+    if (header === undefined) {
+      // Console-session cookie fallback (console spec §4.3) — only when NO
+      // Authorization header is present at all. ANY present header takes the
+      // bearer path below (present-but-malformed / non-Bearer → 401, exactly
+      // the pre-cookie behavior), so a stray credential is never silently
+      // ignored in favor of the cookie identity.
+      const token = consoleSessionTokenFrom(req.headers.cookie);
+      if (token) {
+        const session = await resolveConsoleSession(
+          pool,
+          token,
+          consoleSessionTtlSeconds,
+        );
+        if (!session) {
+          throw new ApiError(
+            401,
+            "unauthorized",
+            "invalid or expired console session",
+          );
+        }
+        // CSRF (§4.5): a mutating request authenticated by cookie must carry
+        // the custom header. Checked AFTER session resolution so an invalid
+        // cookie is a 401, not a 403. Bearer requests never reach this branch.
+        if (
+          MUTATING_METHODS.has(req.method) &&
+          req.headers[CONSOLE_CSRF_HEADER] !== "1"
+        ) {
+          throw new ApiError(
+            403,
+            "forbidden",
+            "cookie-authenticated mutations require the X-Console-Csrf: 1 header",
+          );
+        }
+        req.tenantCtx = { tenantId: session.tenantId, scopes: session.scopes };
+        return;
+      }
+      throw new ApiError(401, "unauthorized", "missing or invalid Authorization header");
+    }
+    // Scheme match is case-sensitive ("Bearer ", never "bearer ") — the
+    // pre-cookie convention, kept so behavior with a header present is
+    // byte-for-byte what it was before the cookie fallback existed.
+    if (!header.startsWith("Bearer ")) {
       throw new ApiError(401, "unauthorized", "missing or invalid Authorization header");
     }
     const rawKey = header.slice("Bearer ".length).trim();

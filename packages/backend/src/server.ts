@@ -47,6 +47,12 @@ import { tenantRoutes } from "./api/tenant.js";
 // bearer-auth hook and added to PUBLIC_PATHS so self-service sign-up works
 // without credentials; gated by `config.onboardingEnabled`.
 import { onboardingRoutes } from "./api/onboarding.js";
+// WP-C5.1: commercialization (saas) — tenant billing surface + the machine
+// credit-surface the billing adapter calls (console spec §11).
+import { billingRoutes } from "./api/billing.js";
+import { billingInternalRoutes } from "./api/billing-internal.js";
+import type { EmailSender } from "./domain/ports.js";
+import { NOOP_EMAIL_SENDER } from "./domain/email/index.js";
 // WP-1.1 Agents API (CRUD + versioning + archive).
 import { agentRoutes } from "./api/agents.js";
 // WP-1.2 Environment routes (CRUD + archive + work-stats + work-stop).
@@ -59,7 +65,14 @@ import { sessionRoutes } from "./api/sessions.js";
 import { eventRoutes } from "./api/events.js";
 import type { EventsReader } from "./domain/event-stream/index.js";
 // WP-4.5 read-only web console (spec §26.6) — serves the built SPA at /console.
-import { createConsoleServeHook } from "./api/console.js";
+// WP-C1.1 (console spec §3): the hook also answers GET /console/config and
+// stamps the console security headers.
+import { createConsoleServeHook, resolveConsoleConfig } from "./api/console.js";
+// WP-C1.2 (console spec §4): console sessions — key⇄cookie exchange + CSRF.
+import {
+  consoleSessionRoutes,
+  resolveConsoleSessionTtlSeconds,
+} from "./api/console-session.js";
 // WP-1.9 vault + credential routes.
 import { vaultRoutes } from "./api/vaults.js";
 // WP-2.2 Memory store routes (stores + memories + versions + redact).
@@ -215,6 +228,12 @@ export interface CreateAppOptions {
    * every `/v1/*` call the SPA makes still requires a Bearer key.
    */
   consoleDistPath?: string;
+  /**
+   * WP-C5.1 (console spec §11.1): the email seam for the trial verification
+   * message. Defaults to the no-op recorder (delivers nothing; dev/test read the
+   * token off it). A production saas deployment injects a real sender.
+   */
+  emailSender?: EmailSender;
 }
 
 /**
@@ -251,7 +270,12 @@ export async function createApp(opts: CreateAppOptions): Promise<FastifyInstance
     "img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; " +
     "base-uri 'none'; frame-ancestors 'none'";
   app.addHook("onSend", async (_req, reply, payload) => {
-    reply.header("Content-Security-Policy", CSP);
+    // WP-C1.1 (console spec §3.4): the /console* serve hook sets its own,
+    // stricter CSP before sending — defer to a CSP that is already present so
+    // this API-wide default never clobbers it.
+    if (!reply.getHeader("Content-Security-Policy")) {
+      reply.header("Content-Security-Policy", CSP);
+    }
     reply.header("X-Content-Type-Options", "nosniff");
     reply.header("X-Frame-Options", "DENY");
     reply.header("Referrer-Policy", "no-referrer");
@@ -329,22 +353,53 @@ export async function createApp(opts: CreateAppOptions): Promise<FastifyInstance
   // /console* (static SPA assets) load without a Bearer key while every /v1/*
   // route remains authenticated. No-op for non-console paths. The hook is
   // registered unconditionally (cheap); if dist is absent it returns 404.
+  // WP-C1.1 (console spec §3.2): the hook also serves the public
+  // GET /console/config from the values resolved off the service config.
   app.addHook(
     "onRequest",
-    createConsoleServeHook(
-      opts.consoleDistPath ? { distPath: opts.consoleDistPath } : {},
-    ),
+    createConsoleServeHook({
+      ...(opts.consoleDistPath ? { distPath: opts.consoleDistPath } : {}),
+      config: resolveConsoleConfig(opts.config),
+    }),
   );
+
+  // --- WP-C1.2: console sessions (cookie auth + CSRF, console spec §4) -----
+  // POST/GET/DELETE /console/session. The serve hook above stamps the §3.4
+  // security headers and passes /console/session through; the path is on the
+  // auth PUBLIC_PATHS allowlist (POST is the login; GET/DELETE self-
+  // authenticate via the cookie). Mounted only with a pool (sessions live in
+  // the console_sessions table).
+  if (opts.pool) {
+    await app.register(consoleSessionRoutes, {
+      pool: opts.pool,
+      ttlSeconds: resolveConsoleSessionTtlSeconds(opts.config),
+    });
+  }
 
   // --- WP-5.2: public onboarding sign-up route (§29.6) ------------------------
   // Registered BEFORE the bearer-auth hook (and on the PUBLIC_PATHS allowlist)
   // so self-service sign-up needs no credentials. Gated by `onboardingEnabled`
   // so self-hosted deployments can disable open tenant creation. Mounted only
   // when a pool is present (sign-up writes a tenant + api key).
+  const emailSender = opts.emailSender ?? NOOP_EMAIL_SENDER;
   if (opts.pool) {
     await app.register(onboardingRoutes, {
       pool: opts.pool,
       enabled: opts.config.onboardingEnabled,
+      // WP-C5.1: a fresh saas sign-up also provisions the $5 trial (pending grant
+      // + verification email). Off for solo/team (`billingEnabled=false`).
+      billingEnabled: opts.config.billingEnabled,
+      emailSender,
+    });
+    // WP-C5.1 (console spec §11.7): the MACHINE credit-surface the billing
+    // adapter calls. Registered before the tenant bearer-auth hook and on
+    // PUBLIC_PATHS; it does its own constant-time machine-bearer auth (NOT a
+    // tenant key), fail-closed on an unset `BILLING_PROVISION_TOKEN`.
+    await app.register(billingInternalRoutes, {
+      pool: opts.pool,
+      ...(opts.config.billingProvisionToken
+        ? { provisionToken: opts.config.billingProvisionToken }
+        : {}),
     });
   }
 
@@ -355,7 +410,15 @@ export async function createApp(opts: CreateAppOptions): Promise<FastifyInstance
   // unauthenticated. Registered before P0.5's preHandler middleware so
   // `request.tenantCtx` is set before idempotency/rate-limiting run.
   if (opts.pool) {
-    app.addHook("onRequest", createAuthHandler(opts.pool));
+    // WP-C1.2: the auth hook also accepts the console-session cookie when no
+    // bearer header is present (console spec §4.3); it needs the sliding TTL
+    // to re-extend sessions on use (§4.6).
+    app.addHook(
+      "onRequest",
+      createAuthHandler(opts.pool, {
+        consoleSessionTtlSeconds: resolveConsoleSessionTtlSeconds(opts.config),
+      }),
+    );
     await app.register(tenantRoutes, { pool: opts.pool });
     // --- WP-1.1: Agents API (CRUD + versioning + archive). ---
     // Registered after auth so `request.tenantCtx` is set; idempotency /
@@ -409,6 +472,7 @@ export async function createApp(opts: CreateAppOptions): Promise<FastifyInstance
   if (opts.pool) {
     await app.register(sessionRoutes, {
       pool: opts.pool,
+      billingEnabled: opts.config.billingEnabled,
       ...(opts.objectStore ? { objectStore: opts.objectStore } : {}),
       ...(opts.sandboxProvider ? { sandboxProvider: opts.sandboxProvider } : {}),
     });
@@ -420,6 +484,7 @@ export async function createApp(opts: CreateAppOptions): Promise<FastifyInstance
   if (opts.pool && opts.resolveRuntime) {
     await app.register(eventRoutes, {
       pool: opts.pool,
+      billingEnabled: opts.config.billingEnabled,
       resolveRuntime: opts.resolveRuntime,
       ...(opts.getActiveRuntime ? { getActiveRuntime: opts.getActiveRuntime } : {}),
       ...(opts.sessionEvents ? { events: opts.sessionEvents } : {}),
@@ -528,6 +593,31 @@ export async function createApp(opts: CreateAppOptions): Promise<FastifyInstance
     await app.register(sessionOutcomeRoutes, {
       pool: opts.pool,
       ...(opts.outcomeRunner ? { runOutcomeLoop: opts.outcomeRunner } : {}),
+    });
+  }
+
+  // --- WP-C5.1: tenant billing surface (console spec §11.8) ---------------
+  // (Distinct block; registered after auth so `request.tenantCtx` is set. Reads
+  // balance/lifecycle/ledger and resends the verification email — all-tenant,
+  // never calls a payment engine. All-modes safe: a tenant not enrolled in the
+  // ledger simply 404s on GET /v1/tenant/billing, which the console reads as
+  // "no billing".)
+  if (opts.pool) {
+    // The link-out proxy (checkout/portal/auto-charge) forwards to the billing
+    // adapter over the machine channel — present only when BOTH the adapter URL and
+    // the shared machine secret are configured; otherwise the four routes 404 as the
+    // no-adapter state (§11.8). The Stripe SDK never enters the backend.
+    const adapter =
+      opts.config.billingAdapterUrl && opts.config.billingProvisionToken
+        ? {
+            baseUrl: opts.config.billingAdapterUrl,
+            provisionToken: opts.config.billingProvisionToken,
+          }
+        : undefined;
+    await app.register(billingRoutes, {
+      pool: opts.pool,
+      emailSender,
+      ...(adapter ? { adapter } : {}),
     });
   }
 

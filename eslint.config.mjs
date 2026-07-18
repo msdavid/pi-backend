@@ -203,6 +203,8 @@ export default tseslint.config(
       "packages/client-extension/src/api-client.test.ts",
       "packages/client-extension/src/**/*contract*.test.ts",
       "packages/client-extension/src/**/*conformance*.test.ts",
+      "packages/web-console/src/api/__tests__/*contract*.test.ts",
+      "packages/web-console/src/**/*conformance*.test.ts",
     ],
     plugins: { seam: seamPlugin },
     rules: {

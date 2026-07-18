@@ -1,0 +1,103 @@
+/* Shared saas commercialization widgets (WP-C5.4). Semantic status color is
+   reserved for status (console.md §4); these banners borrow the status border
+   tokens to signal severity without card-grid decoration (DP-3). */
+
+.unverified,
+.low,
+.suspended {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  margin-bottom: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.unverified,
+.low {
+  border-color: var(--status-warning-fg);
+}
+
+.suspended {
+  border-color: var(--status-danger-fg);
+}
+
+.noticeText {
+  margin: 0;
+  flex: 1;
+  min-width: 20ch;
+}
+
+.noticeActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.noticeOk {
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-small);
+}
+
+.noticeErr {
+  color: var(--status-danger-fg);
+  font-size: var(--font-size-small);
+}
+
+.bannerLink {
+  color: var(--color-accent);
+}
+
+.bannerLink:hover {
+  text-decoration: underline;
+}
+
+.bannerLink:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
+}
+
+/* Home balance headline. */
+.headline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-5);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: var(--space-5);
+}
+
+.balanceMain {
+  display: flex;
+  flex-direction: column;
+}
+
+.balanceValue {
+  font-size: var(--font-size-display);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.balanceLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-small);
+  color: var(--color-fg-muted);
+}
+
+.burn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.runway {
+  font-size: var(--font-size-small);
+  color: var(--color-fg-muted);
+}

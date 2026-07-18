@@ -210,6 +210,16 @@ describe.skipIf(!RUN)("E2E: composed app (WP-1.13, @kvm)", () => {
     });
   }
 
+  /**
+   * Last SSE `id:` seen per session, carried across {@link waitForIdle} calls.
+   * Each call opens a FRESH connection, and without `Last-Event-ID` the events
+   * route replays the full history from position 0 — so a second waitForIdle
+   * would return on the REPLAYED `session.status_idle` of the previous turn
+   * and race the still-processing one. Resuming after the last seen id keeps
+   * every wait anchored to events this test has not observed yet.
+   */
+  const lastSeenEventId = new Map<string, number>();
+
   /** Read the SSE stream until a `session.status_idle` frame arrives. */
   async function waitForIdle(
     sessionId: string,
@@ -218,8 +228,15 @@ describe.skipIf(!RUN)("E2E: composed app (WP-1.13, @kvm)", () => {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
+      const headers: Record<string, string> = {
+        authorization: `Bearer ${apiKey}`,
+      };
+      const resumeAfter = lastSeenEventId.get(sessionId);
+      if (resumeAfter !== undefined) {
+        headers["last-event-id"] = String(resumeAfter);
+      }
       const res = await fetch(`${baseUrl}/v1/sessions/${sessionId}/stream`, {
-        headers: { authorization: `Bearer ${apiKey}` },
+        headers,
         signal: ctrl.signal,
       });
       expect(res.status).toBe(200);
@@ -235,6 +252,8 @@ describe.skipIf(!RUN)("E2E: composed app (WP-1.13, @kvm)", () => {
         while ((idx = buf.indexOf("\n\n")) >= 0) {
           const frame = buf.slice(0, idx);
           buf = buf.slice(idx + 2);
+          const id = /^id:\s*(\d+)/m.exec(frame);
+          if (id) lastSeenEventId.set(sessionId, Number(id[1]));
           if (/^event:\s*session\.status_idle/m.test(frame)) return;
         }
       }

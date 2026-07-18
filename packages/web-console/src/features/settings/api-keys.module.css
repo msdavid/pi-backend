@@ -1,0 +1,114 @@
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.title {
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-size-title);
+}
+
+.microcopy {
+  margin: 0;
+  font-size: var(--font-size-small);
+  color: var(--color-fg-muted);
+  max-width: 42rem;
+}
+
+.actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.scopeNote {
+  font-size: var(--font-size-small);
+  color: var(--color-fg-muted);
+  white-space: nowrap;
+}
+
+.chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.chip,
+.adminChip,
+.workerChip {
+  display: inline-block;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-small);
+  font-family: var(--font-mono);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-fg-muted);
+}
+
+/* W9: an over-broad key is visible at a glance. */
+.adminChip {
+  background: var(--status-warning-bg);
+  color: var(--status-warning-fg);
+  border-color: var(--status-warning-bg);
+  font-weight: var(--font-weight-medium);
+}
+
+.workerChip {
+  font-family: var(--font-mono);
+}
+
+.revokedAt {
+  font-size: var(--font-size-small);
+  color: var(--color-fg-muted);
+}
+
+.scopesFieldset {
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.scopesLegend {
+  padding: 0;
+  font-size: var(--font-size-section);
+  font-weight: var(--font-weight-semibold);
+}
+
+.scopesHint {
+  margin: 0;
+  font-size: var(--font-size-small);
+  color: var(--color-fg-muted);
+}
+
+.scopeOption {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--font-size-body);
+}
+
+.scopeName {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono);
+}
+
+.scopeHint {
+  margin: 0 0 0 var(--space-5);
+  font-size: var(--font-size-small);
+  color: var(--color-fg-muted);
+}
+
+.dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}

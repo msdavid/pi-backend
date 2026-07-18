@@ -93,3 +93,12 @@ export const MemoryVersionRedactRequest = z
   .object({ reason: z.string().optional() })
   .optional();
 export type MemoryVersionRedactRequest = z.infer<typeof MemoryVersionRedactRequest>;
+
+/**
+ * Restore request (WP-C4.0) — copies an old version's content into a NEW head
+ * version for the same `memoryPath` (history preserved; nothing rewritten).
+ * No fields today; the body may be omitted entirely. Response: `MemoryVersion`
+ * (the newly created version).
+ */
+export const MemoryVersionRestoreRequest = z.object({}).optional();
+export type MemoryVersionRestoreRequest = z.infer<typeof MemoryVersionRestoreRequest>;

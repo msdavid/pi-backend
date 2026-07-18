@@ -5,8 +5,8 @@
  * - posts the MeteringEvent JSON body to the configured https endpoint,
  *   signed with the X-Webhook-Signature scheme (verifiable round-trip).
  * - 2xx ack completes after one attempt.
- * - non-2xx is retried (at-least-once) then succeeds; the same X-Metering-Id is
- *   carried across retries (recipient dedup key).
+ * - non-2xx is retried (at-least-once) then succeeds; the X-Metering-Id (= the
+ *   event's `idempotencyKey`) is carried across retries (recipient dedup key).
  * - rejects a non-https endpoint at construction.
  * - W8.2: egress goes through the shared SSRF-pinned transport — an endpoint that
  *   resolves to a private IP (or uses a non-80/443 port) is never posted to, and the
@@ -37,13 +37,17 @@ const PRIVATE_RESOLVER = async (): Promise<LookupAddress[]> => [
 ];
 
 const EVENT: MeteringEvent = {
+  idempotencyKey: "meter:tnt_01J:0",
   tenantId: "tnt_01J",
-  sessionId: "sess_01J",
-  model: "claude-3-5-sonnet",
+  bucketStart: "2026-07-13T12:00:00.000Z",
+  bucketEnd: "2026-07-13T12:01:00.000Z",
+  requestCount: 3,
   inputTokens: 100,
   outputTokens: 50,
+  cacheCreationInputTokens: 5,
+  cacheReadInputTokens: 10,
+  totalTokens: 165,
   usdCost: 0.0042,
-  recordedAt: "2026-07-13T12:00:00.000Z",
 };
 
 /** Captured delivery request. */
@@ -98,7 +102,7 @@ describe("WebhookBillingSink", () => {
     expect(c.method).toBe("POST");
     expect(c.url).toBe(ENDPOINT);
     expect(c.headers["content-type"]).toBe("application/json");
-    expect(c.headers["x-metering-id"]).toMatch(/^met_/);
+    expect(c.headers["x-metering-id"]).toBe(EVENT.idempotencyKey);
     expect(JSON.parse(c.body)).toEqual(EVENT);
 
     // Signature verifies against the posted body + secret.

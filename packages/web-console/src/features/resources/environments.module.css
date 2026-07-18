@@ -1,0 +1,81 @@
+.back {
+  margin: 0 0 var(--space-3);
+}
+
+.backLink {
+  color: var(--color-fg-muted);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+}
+
+.backLink:hover {
+  color: var(--color-fg);
+  text-decoration: underline;
+}
+
+.backLink:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-3);
+}
+
+.headerActions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-display);
+  line-height: var(--line-height-tight);
+}
+
+.hint {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-small);
+  color: var(--color-fg-muted);
+  max-width: 48rem;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  max-width: 14rem;
+}
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.scopeNote {
+  font-size: var(--font-size-small);
+  color: var(--color-fg-muted);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.more {
+  margin-top: var(--space-3);
+}

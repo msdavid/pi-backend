@@ -31,6 +31,7 @@ import {
   type Metadata,
   type Session,
   type SessionStatus,
+  type SessionUsageResponse,
   type StopReason,
   type Usage,
 } from "@pi-managed/contracts";
@@ -61,6 +62,13 @@ export interface SessionRow {
   jsonl_object_key: string;
   forked_from_session_id: string | null;
   sandbox_handle: string | null;
+  /**
+   * Cumulative `usage_records` USD rollup (numeric arrives as a string). Present
+   * only on rows read via {@link USD_COST_LATERAL} (list/detail); absent on
+   * `SELECT *` / `RETURNING *` rows, where {@link toSession} defaults it to 0
+   * (correct for fresh inserts — no usage has been recorded yet).
+   */
+  usd_cost?: string | number | null;
 }
 
 /** ISO-string helper — contracts `Timestamp` is an RFC 3339 string. */
@@ -97,7 +105,7 @@ export function toSession(row: SessionRow): Session {
     environmentId: row.environment_id,
     status: row.status as SessionStatus,
     stopReason: row.stop_reason as StopReason | null,
-    usage: normalizeUsage(row.usage),
+    usage: { ...normalizeUsage(row.usage), usdCost: Number(row.usd_cost ?? 0) },
     vaultIds: row.vault_ids ?? [],
     resources: row.resources ?? [],
     createdAt: iso(row.created_at),
@@ -199,14 +207,38 @@ async function fetchLiveSessionRow(
   return row;
 }
 
-/** Get a session as the wire resource; `null` if absent / cross-tenant / archived. */
+/**
+ * Aggregated per-session USD rollup (`SUM(usage_records.usd_cost)`), joined
+ * laterally so a page of sessions is still ONE query — never an N+1. Each outer
+ * row's aggregate is served by the `(tenant_id, session_id, recorded_at)` index;
+ * `ur.tenant_id = s.tenant_id` keeps the aggregate tenant-scoped (the RLS policy
+ * on `usage_records` backstops it).
+ */
+const USD_COST_LATERAL = `LEFT JOIN LATERAL (
+        SELECT COALESCE(SUM(ur.usd_cost), 0) AS usd_cost
+          FROM usage_records ur
+         WHERE ur.tenant_id = s.tenant_id AND ur.session_id = s.id
+      ) uc ON TRUE`;
+
+/**
+ * Get a session as the wire resource (incl. the `usage.usdCost` rollup);
+ * `null` if absent / cross-tenant / archived.
+ */
 export async function getSession(
   pool: Pool,
   tenantCtx: TenantCtx,
   id: string,
 ): Promise<Session | null> {
-  const row = await fetchLiveSessionRow(pool, tenantCtx, id);
-  return row ? toSession(row) : null;
+  const { rows } = await tenantScopedQuery<SessionRow>(
+    pool,
+    tenantCtx,
+    `SELECT s.*, uc.usd_cost
+       FROM sessions s
+       ${USD_COST_LATERAL}
+      WHERE s.tenant_id = $1 AND s.id = $2 AND s.status <> 'archived'`,
+    [tenantCtx.tenantId, id],
+  );
+  return rows[0] ? toSession(rows[0]) : null;
 }
 
 /** Read the stored per-session `agent_overrides` blob (test seam + materializer). */
@@ -224,6 +256,7 @@ export interface ListSessionsOptions {
   limit: number;
   cursor?: string;
   status?: SessionStatus;
+  stopReason?: StopReason;
   agentId?: string;
   environmentId?: string;
 }
@@ -240,8 +273,10 @@ function decodeListCursor(cursor: string): { createdAt: string; id: string } {
 
 /**
  * List sessions for `tenantCtx`, newest first, cursor-paginated. Archived
- * (soft-deleted) sessions are always excluded. Optional `status` / `agentId` /
- * `environmentId` filters narrow the set (§"GET /v1/sessions").
+ * (soft-deleted) sessions are always excluded. Optional `status` / `stopReason` /
+ * `agentId` / `environmentId` filters narrow the set and are combinable
+ * (§"GET /v1/sessions"). Each row carries the `usage.usdCost` rollup via
+ * {@link USD_COST_LATERAL} — a single query for the whole page, no N+1.
  */
 export async function listSessions(
   pool: Pool,
@@ -249,32 +284,38 @@ export async function listSessions(
   opts: ListSessionsOptions,
 ): Promise<{ data: Session[]; nextCursor: string | null }> {
   const params: unknown[] = [tenantCtx.tenantId];
-  const where: string[] = ["status <> 'archived'"];
+  const where: string[] = ["s.status <> 'archived'"];
   let n = 1;
   if (opts.status) {
-    where.push(`status = $${++n}`);
+    where.push(`s.status = $${++n}`);
     params.push(opts.status);
   }
+  if (opts.stopReason) {
+    where.push(`s.stop_reason = $${++n}`);
+    params.push(opts.stopReason);
+  }
   if (opts.agentId) {
-    where.push(`agent_id = $${++n}`);
+    where.push(`s.agent_id = $${++n}`);
     params.push(opts.agentId);
   }
   if (opts.environmentId) {
-    where.push(`environment_id = $${++n}`);
+    where.push(`s.environment_id = $${++n}`);
     params.push(opts.environmentId);
   }
   if (opts.cursor) {
     const { createdAt, id } = decodeListCursor(opts.cursor);
-    where.push(`(created_at, id) < ($${++n}, $${++n})`);
+    where.push(`(s.created_at, s.id) < ($${++n}, $${++n})`);
     params.push(createdAt, id);
   }
   params.push(opts.limit + 1);
   const { rows } = await tenantScopedQuery<SessionRow>(
     pool,
     tenantCtx,
-    `SELECT * FROM sessions
-      WHERE tenant_id = $1 AND ${where.join(" AND ")}
-      ORDER BY created_at DESC, id DESC
+    `SELECT s.*, uc.usd_cost
+       FROM sessions s
+       ${USD_COST_LATERAL}
+      WHERE s.tenant_id = $1 AND ${where.join(" AND ")}
+      ORDER BY s.created_at DESC, s.id DESC
       LIMIT $${++n}`,
     params,
   );
@@ -412,7 +453,9 @@ export async function updateSession(
       Object.keys(stored).length ? JSON.stringify(stored) : null,
     ],
   );
-  return rows[0] ? toSession(rows[0]) : null;
+  // Re-read via getSession so the response carries the `usage.usdCost` rollup
+  // (the UPDATE's `RETURNING *` has no `usd_cost` join column).
+  return rows[0] ? getSession(pool, tenantCtx, id) : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -838,16 +881,17 @@ export async function getSessionMessages(
 
 /**
  * Cumulative token usage for a session (§"GET /v1/sessions/:id/usage"). Token
- * counts are stored in the `sessions.usage` jsonb (updated by the usage recorder
- * during runtime, WP-1.10). `usdCost` is derived; until a price table is wired
- * at the session-read layer it is `0` (the authoritative counts are returned).
+ * counts come from the `sessions.usage` jsonb; `usdCost` is the `usage_records`
+ * rollup (`SUM(usd_cost)`, WP-C2.0). Delegates to {@link getSession} so this
+ * endpoint and the `usage` embedded on the session resource agree by
+ * construction.
  */
 export async function getSessionUsage(
   pool: Pool,
   tenantCtx: TenantCtx,
   id: string,
-): Promise<Usage & { usdCost: number } | null> {
-  const row = await fetchLiveSessionRow(pool, tenantCtx, id);
-  if (!row) return null;
-  return { ...normalizeUsage(row.usage), usdCost: 0 };
+): Promise<SessionUsageResponse | null> {
+  const session = await getSession(pool, tenantCtx, id);
+  if (!session) return null;
+  return { ...session.usage, usdCost: session.usage.usdCost ?? 0 };
 }

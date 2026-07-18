@@ -1,0 +1,46 @@
+.page {
+  min-height: 100vh;
+  min-height: 100dvh; /* §10.5: dynamic viewport on phones */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-5);
+}
+
+.card {
+  width: 100%;
+  max-width: 24rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-display);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+}
+
+.lead {
+  margin: 0;
+  color: var(--color-fg-muted);
+}
+
+.submit {
+  margin-top: var(--space-4);
+  width: 100%;
+}
+
+.loadError {
+  color: var(--color-danger);
+  max-width: 32rem;
+  text-align: center;
+}
+
+.docsLink {
+  color: inherit;
+  text-decoration: underline;
+}

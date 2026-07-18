@@ -1,0 +1,145 @@
+/* Settings → Billing (WP-C5.4). Type hierarchy over boxes (DP-3). */
+
+.title {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-title);
+}
+
+.muted {
+  margin: 0;
+  max-width: 60ch;
+  color: var(--color-fg-muted);
+}
+
+.section {
+  margin: var(--space-6) 0 var(--space-3);
+  font-size: var(--font-size-section);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Balance headline. */
+.balanceRow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.balanceValue {
+  font-size: var(--font-size-display);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.balanceMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-small);
+  color: var(--color-fg-muted);
+}
+
+.money {
+  margin-top: var(--space-4);
+}
+
+.moneyActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.moneyNote,
+.capsNote {
+  margin: var(--space-2) 0 0;
+  max-width: 60ch;
+  font-size: var(--font-size-small);
+  color: var(--color-fg-muted);
+}
+
+.noAdapter {
+  margin: var(--space-4) 0 0;
+  max-width: 60ch;
+  padding: var(--space-3);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-fg-muted);
+}
+
+.mono {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Auto-charge form. */
+.autoCharge {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 40rem;
+}
+
+.autoDisabled,
+.saveError {
+  margin: 0;
+  color: var(--status-danger-fg);
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.autoRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.field label {
+  font-size: var(--font-size-small);
+  color: var(--color-fg-muted);
+}
+
+.field input {
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font: inherit;
+}
+
+.field input:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
+}
+
+.caps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  margin: 0;
+}
+
+.cap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.cap dt {
+  font-size: var(--font-size-small);
+  color: var(--color-fg-muted);
+}
+
+.cap dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}

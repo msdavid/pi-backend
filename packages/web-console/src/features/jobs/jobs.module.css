@@ -1,0 +1,77 @@
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-display);
+  line-height: var(--line-height-tight);
+}
+
+.headerActions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.filters {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.name {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.oneShot {
+  font-size: var(--font-size-small);
+  color: var(--color-fg-muted);
+}
+
+.schedule {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.cron {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-small);
+  color: var(--color-fg-muted);
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.pausedReason {
+  font-size: var(--font-size-small);
+  color: var(--status-danger-fg);
+}
+
+.outcome {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+.outcomeError {
+  font-size: var(--font-size-small);
+  color: var(--status-danger-fg);
+}
+
+.more {
+  margin-top: var(--space-3);
+}

@@ -123,7 +123,7 @@ async function jobAction(
   args: string,
   fn: (client: ManagedApiClient, id: string) => Promise<unknown>,
   what: string,
-  fmt: (result: unknown) => string,
+  fmt: (result: unknown, client: ManagedApiClient) => string,
 ): Promise<void> {
   const [jobId] = parseArgs(args);
   const client = deps.createClient();
@@ -139,7 +139,7 @@ async function jobAction(
     if (catchClientError(deps.ui, e, what)) return;
     throw e;
   }
-  deps.ui.notify(fmt(result), "info");
+  deps.ui.notify(fmt(result, client), "info");
 }
 
 export function runCronPause(deps: CronCommandDeps, args: string): Promise<void> {
@@ -164,9 +164,11 @@ export function runCronArchive(deps: CronCommandDeps, args: string): Promise<voi
 }
 
 export function runCronRun(deps: CronCommandDeps, args: string): Promise<void> {
-  return jobAction(deps, args, (c, id) => c.runJob(id), "Run", (r) => {
+  return jobAction(deps, args, (c, id) => c.runJob(id), "Run", (r, client) => {
     const res = r as { runId: string; sessionId?: string };
-    return `Triggered run ${res.runId}${res.sessionId ? ` (session ${res.sessionId})` : ""}.`;
+    if (!res.sessionId) return `Triggered run ${res.runId}.`;
+    // Session ids print with their console deep link (console-spec §1.4).
+    return `Triggered run ${res.runId} (session ${res.sessionId}). Console: ${client.consoleSessionUrl(res.sessionId)}`;
   });
 }
 

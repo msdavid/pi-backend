@@ -36,6 +36,7 @@ import { parseListParams, paginate, encodeCursor, decodeCursor } from "./middlew
 import type { SessionRuntime } from "../domain/ports.js";
 import { fetchSessionRow, getSession, toSession } from "../domain/session/index.js";
 import { SessionEventsStore } from "../domain/session-manager/index.js";
+import { assertCanStartWork } from "../domain/billing/index.js";
 import {
   inboundToPorts,
   entryToHistoryItem,
@@ -72,6 +73,13 @@ export interface EventRoutesOptions {
   resolveSession?: (ctx: TenantCtx, id: string) => Promise<Session | null>;
   /** Optional logger for surfacing async send/stream errors. */
   logger?: Logger;
+  /**
+   * WP-C5.1 (console spec §11.1): when `true` (saas, config `BILLING_ENABLED`),
+   * a `user.message` that STARTS a turn is blocked for a suspended /
+   * unverified-trial tenant (balance ≤ 0). Reads (history, stream) are never
+   * gated. Reads only local ledger state; no-op for solo/team.
+   */
+  billingEnabled?: boolean;
 }
 
 /** Adapt the pool-backed projection store to the {@link EventsReader} seam. */
@@ -199,6 +207,14 @@ export const eventRoutes: FastifyPluginAsync<EventRoutesOptions> = async (app, o
         "requires_action",
         "system.message cannot be sent while the session is idle with stopReason requires_action",
       );
+    }
+
+    // Fail-soft suspension (§11.1): a `user.message` starts/continues a turn —
+    // new work. Block it for a suspended/unverified saas tenant (balance ≤ 0)
+    // before waking the runtime. `user.interrupt` / `system.message` are NOT
+    // gated (they steer or stop existing work, they do not start new work).
+    if (event.type === "user.message" && opts.pool) {
+      await assertCanStartWork(opts.pool, ctx.tenantId, opts.billingEnabled ?? false);
     }
 
     const runtime = await opts.resolveRuntime(id);

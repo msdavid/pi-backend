@@ -105,6 +105,7 @@ function makeClient(over: Partial<ManagedApiClient> = {}): { client: ManagedApiC
       calls.push({ method: "downloadFile", args: [p, localPath] });
       return Promise.resolve();
     },
+    consoleSessionUrl: (id: string) => `https://api.example.com/console/sessions/${id}`,
     ...over,
   } as unknown as ManagedApiClient;
   return { client, calls };
@@ -138,7 +139,13 @@ describe("WP-1.11c remote tools", () => {
     );
     const delegate = tools.find((t) => t.name === "remote_delegate")!;
     const res = await delegate.execute("tc1", { task: "run tests" }, undefined, undefined, undefined as unknown);
-    expect(res.details).toMatchObject({ sessionId: "sess_1", costEstimate: expect.any(Number) });
+    expect(res.details).toMatchObject({
+      sessionId: "sess_1",
+      costEstimate: expect.any(Number),
+      consoleUrl: "https://api.example.com/console/sessions/sess_1",
+    });
+    // The delegate result prints the console deep link (console-spec §1.4).
+    expect(res.content[0]!.text).toContain("https://api.example.com/console/sessions/sess_1");
     const createCall = calls.find((c) => c.method === "createSession");
     expect(createCall?.args[0]).toMatchObject({ budget: { maxUsd: 2.5 } });
   });

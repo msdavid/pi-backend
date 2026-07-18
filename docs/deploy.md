@@ -10,7 +10,7 @@ runtime** — plus a Linux host with **KVM** for microVM isolation.
 | Requirement | Why | Notes |
 |---|---|---|
 | **Linux host with `/dev/kvm`** | microsandbox microVMs run via libkrunfw + KVM | The sandbox provider is inert without it. `@kvm`-gated tests skip cleanly when absent. |
-| **Node.js ≥ 20** | ESM service, `dist/main.js` entrypoint | Build with `pnpm --filter backend build`. |
+| **Node.js ≥ 20** | ESM service, `dist/main.js` entrypoint | Build with `pnpm --filter @pi-managed/backend build`. |
 | **Postgres 16** | Control-plane DB (sessions, agents, environments, vaults, usage, …) | Migrations run **forward-only on boot** (`runMigrations(dbUrl, "up")`). |
 | **Object store** | File payloads, memory stores, snapshots, JSONL sync (§28) | v1 default: local filesystem. SaaS: any S3-compatible store (e.g. MinIO) or Google Cloud Storage. |
 | **microsandbox runtime** | Provisiones/execs detached microVMs (§5.4, §10) | One-time `microsandbox` install bootstrap (§3 below). |
@@ -31,12 +31,19 @@ see `infra/config/index.ts`). The composed app requires:
 | `ALLOW_EPHEMERAL_VAULT_KEY` | no | `false` | Dev-only escape hatch: boot with a generated ephemeral vault key when none is set (stored secrets become unreadable after restart). **Never set in production.** |
 | `PI_SESSION_LOCAL_DIR` | no | `./data/sessions` | Host-side root for per-session local JSONL files. Deliberately not `/tmp` — the cold-wake restore depends on it surviving reboot. |
 | `SESSION_WORKER_MODE` | no | `inproc` | `pool` shards sessions across bounded child processes (R7.1; see `docs/session-worker-pool.md`). |
-| `BILLING_SINK` | no | `none` | `webhook` enables HMAC-signed metering POSTs (`BILLING_WEBHOOK_URL` + `BILLING_WEBHOOK_SECRET`, §29.6). |
+| `BILLING_SINK` | no | `none` | `webhook` enables HMAC-signed metering POSTs (`BILLING_WEBHOOK_URL` + `BILLING_WEBHOOK_SECRET`, §29.6). Payloads are **aggregated, time-bucketed** (console spec §11.4), never per-turn. |
+| `BILLING_ENABLED` | no | `false` | Prepaid ledger enforcement (fail-soft suspension of new work at balance ≤ 0) + the trial email-verification grant (console spec §11.1). **The saas switch** — distinct from `CONSOLE_MODE` (presentation only). Solo/team leave it off and are never suspended/balance-gated. Also enables the usage→ledger debit drain that fires the balance-threshold events. |
+| `BILLING_METERING_BUCKET_MS` | no | `60000` | Metering aggregation bucket width (ms). Usage is summed per tenant per bucket into one export event + one ledger debit (console spec §11.4). Shorter ⇒ tighter enforcement latency, more events. |
+| `BILLING_LOW_BALANCE_THRESHOLD_MICROS` | no | `2000000` | Low-balance threshold in µUSD ($2). A usage debit crossing DOWN through it fires the `tenant.balance_low` webhook once (console spec §11.6). `0` disables the low event (`tenant.balance_exhausted` still fires at ≤ 0). |
+| `BILLING_PROVISION_TOKEN` | no | — | Shared secret for the machine channel between backend and billing adapter — BOTH directions: the adapter → backend credit-surface (`POST /internal/billing/credit`) AND the backend → adapter link-out surface (`BILLING_ADAPTER_URL` below). Host-agent bearer pattern, constant-time. **Unset ⇒ fail-closed** (rejects every request; the link-out proxy `404`s). NOT a tenant API key — never a provider credential. |
+| `BILLING_ADAPTER_URL` | no | — | Base URL of the billing-adapter's internal surface (a SEPARATE process, console spec §11.7–11.8). Set it (with `BILLING_PROVISION_TOKEN`) to enable the SDK-free tenant link-out proxy `/v1/tenant/billing/{checkout,portal,auto-charge}`. **Unset ⇒ those four routes `404` and the console renders the no-adapter state** (money controls absent, everything else works, §11.8). The backend HTTP-calls the adapter here — the Stripe SDK never enters `packages/backend`. |
 | `RATE_LIMIT_RPM` / `RATE_LIMIT_ANON_RPM` | no | `600` / `30` | Per-tenant / unauthenticated-path request ceilings in requests/minute (§27.3). |
 | `DB_POOL_MAX` | no | `25` | Max Postgres pool connections (PERF-1). `pg`'s own default is 10. |
 | `DB_CONNECTION_TIMEOUT_MS` | no | `10000` | Max time to acquire a pooled connection before failing (PERF-1). `pg`'s default is `0` = wait forever. |
 | `DB_STATEMENT_TIMEOUT_MS` | no | `30000` | Server-side `statement_timeout` on every connection (PERF-1). `0` disables it. |
 | `ONBOARDING_ENABLED` | no | `false` | Public self-service sign-up (`POST /v1/onboarding/signup`). **Off by default** (self-hosted secure default, SEC-13); the SaaS shape sets `true`. |
+| `CONSOLE_MODE` | no | derived | Console presentation mode (`solo`/`team`/`saas`) returned by `GET /console/config` (console spec §3.2). Unset ⇒ derived: `ONBOARDING_ENABLED=true` → `saas`, else `solo`. Presentation only — no `/v1` behavior differs by mode. |
+| `CONSOLE_SESSION_TTL` | no | by mode | Console-session sliding TTL in **seconds** (console spec §4.6). Unset ⇒ the per-mode default: `solo` 30 d, `team` 7 d, `saas` 24 h. |
 | `RATE_LIMIT_STORE` | no | `memory` | Rate-limit bucket store (ROB-8). `postgres` = a shared, cross-replica ceiling (requires `DB_URL`); `memory` = per-process. |
 | `INSTANCE_ID` | no | random/boot | Stable id for this instance's boot-recovery ownership (ROB-13). Unset ⇒ a random per-boot id. **Give each instance a distinct id** — two instances sharing one reclaim each other's live sessions. |
 | `INSTANCE_LEASE_MS` | no | `300000` | Ownership lease (ROB-13): a `running` session untouched longer than this is reclaimable by boot recovery. |
@@ -50,6 +57,51 @@ Multi-host (`SANDBOX_MODE=multi`) additionally requires the host-agent channel t
 from its capacity so a host is never oversubscribed.
 
 A JSON config file may supplement env via `CONFIG_FILE=/path/to/config.json`.
+
+**Trial verification email — NOT an env var.** There is no `EMAIL_SENDER` variable for
+an operator to set (nothing in the backend reads one). The email sender is a
+composition-time injection: the default `NoopEmailSender` records-but-does-not-deliver
+(the dev/test default), and a production saas deployment injects a real sender via
+`createApp({ emailSender })` (SES / Postmark / SMTP). That real sender's OWN provider
+env vars ship with the adapter that provides it — never with the backend. See
+`docs/internal-contracts.md` §`EmailSender` for the seam contract.
+
+### Billing adapter (saas — a SEPARATE process, console spec §11.7)
+
+`packages/billing-adapter` (`@pi-managed/billing-adapter`, WP-C5.3) is the payment
+engine (Stripe reference). **It is not part of the backend request path and the
+Stripe SDK is never imported into `packages/backend`** — deploy it as its own
+process: a webhook receiver (verifies Stripe webhooks → credits the ledger via the
+machine credit-surface), a `tenant.balance_low` subscriber (the auto-charge engine),
+AND an internal HTTP surface the backend's link-out proxy calls for checkout / portal /
+auto-charge (`src/internal-api.ts`, machine bearer — the reverse of the credit-surface).
+It talks to the backend through `POST /internal/billing/credit` (adapter → backend) and
+serves the backend's `BILLING_ADAPTER_URL` calls (backend → adapter); it reaches Stripe
+through the SDK. Its config is read from env at runtime and **fails closed** when a secret
+is missing — no credential ships in the package, and no real Stripe key belongs in any env
+checked into source.
+
+| Var | Required | Purpose |
+|---|---|---|
+| `STRIPE_SECRET_KEY` | **yes** | Stripe secret key (`sk_…`). Held only by this process; never logged. |
+| `STRIPE_WEBHOOK_SECRET` | **yes** | Webhook signing secret (`whsec_…`). Inbound webhooks that fail verification are rejected. |
+| `PI_BACKEND_URL` | **yes** | Backend base URL the machine credit-surface lives on. |
+| `BILLING_PROVISION_TOKEN` | **yes** | The machine bearer secret — MUST match the backend's `BILLING_PROVISION_TOKEN`. NOT a tenant key. |
+| `BILLING_CHECKOUT_SUCCESS_URL` | **yes** | Console return URL after a successful hosted checkout. |
+| `BILLING_CHECKOUT_CANCEL_URL` | **yes** | Console return URL after a cancelled checkout. |
+| `BILLING_PORTAL_RETURN_URL` | **yes** | Console return URL from the hosted customer/billing portal. |
+| `AUTO_CHARGE_MAX_FAILURES` | no (`3`) | Consecutive off-session charge failures that auto-disable a tenant's auto-charge (then notify — no silent retries). |
+
+The adapter issues hosted **checkout** and **portal** URLs on request (the backend's
+`/v1/tenant/billing/{checkout,portal}` proxy forwards to its internal surface); the
+console (WP-C5.4) links out to them and never sees a card (§11.9). The reference engine
+issues a fixed-amount checkout, so a top-up carries an explicit amount. Ledger credit
+from a payment is idempotent under Stripe's at-least-once re-delivery — the idempotency
+key derives from the payment id, so a replay credits exactly once (§13). Auto-charge is
+opt-in/off by default, with hard per-day and per-month rolling-window caps that are never
+exceeded; a redelivered `tenant.balance_low` for one crossing charges the card at most
+once (idempotency keyed on the crossing's ledger `entryId`), and concurrent crossings for
+a tenant are serialized so the cap is never raced past.
 
 ### Database role — row-level security (SEC-10)
 
@@ -106,11 +158,14 @@ Set `SANDBOX_RUNTIME=disabled` on non-KVM hosts.
 docker compose up -d postgres minio
 
 # 2. Build:
-pnpm --filter backend build
+pnpm --filter @pi-managed/backend build
 
-# 3. Boot (runs migrations up, then binds PORT):
+# 3. Boot (runs migrations up, then binds PORT). VAULT_KEY (or
+#    ALLOW_EPHEMERAL_VAULT_KEY=true, dev only) is required — boot refuses
+#    without one (§2):
 DB_URL=postgres://pi:pi@localhost:5432/pi \
 OBJECT_STORE_ROOT=./data/objectstore \
+VAULT_KEY=<32-byte-hex-or-base64-key> \
 SANDBOX_RUNTIME=enabled \
 PORT=3000 \
 node --enable-source-maps packages/backend/dist/main.js

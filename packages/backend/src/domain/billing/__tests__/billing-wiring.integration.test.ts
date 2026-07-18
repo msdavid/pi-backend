@@ -1,21 +1,22 @@
 /**
- * W8.2 — the billing metering hook is actually wired by the composition root.
+ * W8.2 / WP-C5.2 — the metering aggregator is wired by the composition root (§11.4).
  *
- * The audit finding was dead wiring: `domain/billing/` existed (sink interface,
- * no-op + webhook impls, `createMeteringHook`) and `usage-recorder.ts` accepted an
- * `onMetering` callback, but `app.ts` never passed one — so no metering event could
- * ever reach a sink. These tests prove the seam end-to-end through the REAL composed
- * app (`createManagedApp`) against a real Postgres:
+ * Proves the seam end-to-end through the REAL composed app (`createManagedApp`)
+ * against a real Postgres:
  *
  * - `BILLING_SINK=webhook`: a real turn through the session runtime records real usage
- *   (a `usage_records` row) and the {@link WebhookBillingSink} posts a signed
- *   {@link MeteringEvent} to the configured endpoint, carrying an `X-Metering-Id` that
- *   is **stable across retries** (the dedup key its docstring promises).
- * - default (`BILLING_SINK` unset ⇒ `none`): the same turn records the same usage and
- *   the sink is a no-op — no egress at all (existing behavior unchanged).
+ *   (a `usage_records` row); a deterministic `meteringAggregator.flushAll()` then posts
+ *   ONE **aggregated, time-bucketed** {@link MeteringEvent} (§11.4, never per-turn) to
+ *   the configured endpoint, HMAC-signed, carrying a stable `idempotencyKey` (also the
+ *   `X-Metering-Id` dedup header) and parsing against the published contract schema.
+ * - `BILLING_ENABLED=true`: the same flush also DRAINS the ledger — a `debit` entry
+ *   appears for the tenant's bucket, the usage→debit bridge that powers §11.1
+ *   enforcement + §11.6 threshold events.
+ * - default (`BILLING_SINK` unset ⇒ `none`, billing off): the turn records the same
+ *   usage, the aggregator is never wired, and there is no egress (behavior unchanged).
  *
  * Egress is routed to a local mock endpoint via an injected `fetchImpl` + a public DNS
- * resolver (the sink now goes through the shared SSRF-pinned transport, which would
+ * resolver (the sink goes through the shared SSRF-pinned transport, which would
  * otherwise refuse a loopback address) — same technique the webhook-dispatcher loop
  * test uses.
  *
@@ -43,8 +44,10 @@ import { createAgent } from "../../agent/agent.js";
 import { createEnvironment } from "../../environment/environment.js";
 import { createSession } from "../../session/index.js";
 import { verifyWebhookSignature } from "../../webhook/index.js";
+import { MeteringEvent as MeteringEventSchema } from "@pi-managed/contracts";
 import { createBillingSink } from "../from-config.js";
 import { NOOP_BILLING_SINK } from "../noop-sink.js";
+import { appendEntry, getBillingRow } from "../ledger.js";
 import type { MeteringEvent } from "../sink.js";
 
 const TEST_KEY = "0".repeat(64);
@@ -265,7 +268,7 @@ d("billing metering hook wired by the composition root (W8.2)", () => {
     await rt.sendEvent(userMessage("hello"));
   }
 
-  it("BILLING_SINK=webhook: a real turn's usage reaches the sink as a signed metering event", async () => {
+  it("BILLING_SINK=webhook: a turn's usage exports as ONE aggregated, signed metering event", async () => {
     const factory = new FakeAgentSessionFactory();
     const managed = await compose(
       {
@@ -288,7 +291,7 @@ d("billing metering hook wired by the composition root (W8.2)", () => {
       const { ctx, sessionId } = await stageSession(managed.pool, "billing-webhook");
       await driveTurn(managed, factory, sessionId);
 
-      // Real usage was recorded (the hook fires only after a successful record()).
+      // Real usage was recorded (the aggregator ingests only after a real record()).
       const { rows } = await query<{ n: string; usd: string }>(
         managed.pool,
         `SELECT count(*) AS n, COALESCE(SUM(usd_cost), 0) AS usd
@@ -298,33 +301,71 @@ d("billing metering hook wired by the composition root (W8.2)", () => {
       expect(Number(rows[0].n)).toBe(1);
       expect(Number(rows[0].usd)).toBeGreaterThan(0);
 
-      // The metering event reached the billing sink (fire-and-forget → poll).
-      // Delivery 1 is 500'd, delivery 2 acks: at-least-once, same dedup id.
+      // Flush the closed bucket deterministically (production waits on the timer).
+      expect(managed.meteringAggregator).toBeDefined();
+      await managed.meteringAggregator!.flushAll();
+
+      // The aggregated event reached the sink. Delivery 1 is 500'd, delivery 2 acks:
+      // at-least-once, same dedup id.
       const delivered = await waitFor(() => mock.received.length >= 2);
       expect(delivered).toBe(true);
       expect(mock.received).toHaveLength(2);
 
-      // X-Metering-Id: `met_` prefixed and STABLE across the retry (dedup key).
+      // X-Metering-Id = the event's `idempotencyKey`, STABLE across the retry.
       const ids = new Set(mock.received.map((r) => r.meteringId));
       expect(ids.size).toBe(1);
-      expect([...ids][0]).toMatch(/^met_/);
+      expect([...ids][0]).toBe(`meter:${ctx.tenantId}:${[...ids][0].split(":")[2]}`);
 
-      // The body is the MeteringEvent for the usage just recorded, HMAC-signed.
+      // The body is the AGGREGATED MeteringEvent (§11.4) and parses the published schema.
       const first = mock.received[0];
       const event = JSON.parse(first.body) as MeteringEvent;
+      expect(() => MeteringEventSchema.parse(event)).not.toThrow();
       expect(event.tenantId).toBe(ctx.tenantId);
-      expect(event.sessionId).toBe(sessionId);
-      expect(event.model).toBe(MODEL);
+      expect(event.requestCount).toBe(1);
       expect(event.inputTokens).toBe(1000);
       expect(event.outputTokens).toBe(500);
       expect(event.usdCost).toBeGreaterThan(0);
-      expect(Number.isNaN(Date.parse(event.recordedAt))).toBe(false);
+      expect(event.idempotencyKey).toBe(`meter:${ctx.tenantId}:${new Date(event.bucketStart).getTime()}`);
       expect(
         verifyWebhookSignature(first.body, first.signature, SECRET).ok,
       ).toBe(true);
 
       // Both deliveries carry the identical body (retry, not a new event).
       expect(mock.received[1].body).toBe(first.body);
+    } finally {
+      await managed.close();
+    }
+  }, 60_000);
+
+  it("BILLING_ENABLED: the flush drains the ledger with a usage debit (§11.1 bridge)", async () => {
+    const factory = new FakeAgentSessionFactory();
+    const managed = await compose({ billingEnabled: true }, factory);
+    try {
+      const { ctx, sessionId } = await stageSession(managed.pool, "billing-drain");
+      // Enroll the tenant with a positive balance so the drain has something to debit.
+      await appendEntry(managed.pool, {
+        tenantId: ctx.tenantId,
+        kind: "topup",
+        amountMicros: 5_000_000,
+        idempotencyKey: "seed",
+      });
+      await driveTurn(managed, factory, sessionId);
+
+      expect(managed.meteringAggregator).toBeDefined();
+      await managed.meteringAggregator!.flushAll();
+
+      // A `debit` entry landed for the bucket and the materialized balance dropped.
+      const { rows } = await query<{ n: string; debit: string }>(
+        managed.pool,
+        `SELECT count(*) AS n, COALESCE(SUM(amount_micros), 0) AS debit
+           FROM ledger_entries WHERE tenant_id = $1 AND kind = 'debit'`,
+        [ctx.tenantId],
+      );
+      expect(Number(rows[0].n)).toBe(1);
+      expect(Number(rows[0].debit)).toBeLessThan(0);
+      const billing = await getBillingRow(managed.pool, ctx.tenantId);
+      expect(billing!.balanceMicros).toBeLessThan(5_000_000);
+      expect(billing!.balanceMicros).toBe(5_000_000 + Number(rows[0].debit));
     } finally {
       await managed.close();
     }

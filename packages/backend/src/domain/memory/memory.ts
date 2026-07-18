@@ -56,7 +56,7 @@ export function sha256Hex(content: string): string {
 }
 
 /** Read an object-store key fully into a UTF-8 string; `null` if absent. */
-async function readObjectText(store: ObjectStore, key: string): Promise<string | null> {
+export async function readObjectText(store: ObjectStore, key: string): Promise<string | null> {
   try {
     const stream = await store.get(key);
     const reader = stream.getReader();

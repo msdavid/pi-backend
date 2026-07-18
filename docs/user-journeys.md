@@ -152,7 +152,10 @@ timeout, no rebalancing): [`session-worker-pool.md`](session-worker-pool.md).
 ### T1 — Onboard the tenant
 
 **SaaS:** `POST /v1/onboarding/signup {tenantName, adminEmail}` → tenant + **admin API
-key** (shown once) + install instructions. **Self-hosted:** the platform admin runs the
+key** (shown once) + install instructions — or the same flow in the browser at
+`/console/signup` (present iff onboarding is enabled): two fields, the key shown
+exactly once behind copy-and-confirm, automatic sign-in, and a first-run checklist
+(model key → agent → first session). **Self-hosted:** the platform admin runs the
 same call and hands over the key. Either way, verify with `GET /v1/tenant` — tenant
 info plus live quota usage against limits.
 
@@ -228,15 +231,29 @@ after persistent failure. `POST /v1/webhooks/:id/test` before trusting it.
 - Set `budget: {maxTokens?, maxUsd?}` on sessions (or via job `sessionConfig`) for
   hard per-session caps — exhaustion stops the session with
   `stopReason: budget_exhausted`, it doesn't silently keep billing.
-- The **web console** (`/console`, read-only, paste any key with `read`) gives the
-  team a browsable view of sessions, event traces, and usage without granting anyone
-  write access.
+- The **web console** (`/console`, sign in with any API key) gives the team a
+  browsable view of sessions, live event traces, and usage — including a tenant
+  dashboard (Settings → Tenant) with quota-vs-limit, spend over time, breakdowns
+  by agent and by `metadata.userId`, and CSV export. The console is
+  scope-variant: a `read`-scoped key browses everything read-only (badged as such)
+  without granting anyone write access; `write`/`admin` keys unlock the matching
+  actions — steer or interrupt a session, answer blocking tool confirmations,
+  trigger job runs, fork, and download session outputs. Every T-journey on this
+  page (T1–T8) is achievable console-only: agents, environments (incl. worker
+  keys + drain), vaults, webhooks, and job lifecycle have management screens
+  unlocked by the `write` scope; API-key management is the one `admin`-gated
+  surface (under Settings); and the Pi-extension install instructions are
+  reprinted on the Settings index any time. In saas mode the console adds the
+  prepaid commercialization surface (console journey W15, Settings → Billing +
+  the Home balance strip): balance, ledger history, hosted-checkout top-up and
+  auto-charge — money is displayed as the ledger reports it, never computed
+  client-side, and the card is entered on the payment engine's hosted page.
 
 ### T8 — Govern tool execution
 
 - **Permission policies** per tool: `always_allow` (built-in default), `always_ask`
-  (session pauses `requires_action` until a human answers — MCP default),
-  `always_deny`.
+  (session pauses `requires_action` until a human answers, from the CLI or the web
+  console — MCP default), `always_deny`.
 - Network policy per environment (T3); memory stores can be mounted `read_only` for
   agents processing untrusted input.
 - The event stream is the audit log: every tool call, confirmation, and result is a
@@ -265,7 +282,9 @@ restate the spec's normative J1–J5.
 Mid-task, type `/remote:delegate "run the full E2E suite and report failures"`. A
 live-view panel opens showing the remote agent working; **you keep coding** — your
 local context stays clean because remote events render in the panel, never into your
-local session's LLM context. The panel flips to "completed; 2 failures"; pull the
+local session's LLM context. The delegate reply also prints a console deep link
+(`<backendUrl>/console/sessions/<id>`) so you can watch the same session from any
+browser. The panel flips to "completed; 2 failures"; pull the
 report into your cwd (`remote_read_outputs` → `./.pi-managed/outputs/` by default) and
 let your local agent act on it. The remote session runs to completion even if you
 close Pi.
@@ -284,7 +303,11 @@ session → `/remote:resume <id>` → continue where you left off. The backend c
 the whole stack from the durable log; the filesystem is preserved from the checkpoint.
 One caveat to know: **processes are not preserved** — a dev server you left running is
 gone, and the agent is told so in its resume context. `/remote:fork <id>` instead
-branches the session — a new session sharing history up to the fork point.
+branches the session — a new session sharing history up to the fork point. No Pi on
+this machine? The **web console** is the no-extension edition of the same move: open
+the session's **Conversation** tab and the composer's first message cold-wakes the
+stack exactly as `/remote:resume` does (same durable log, same preserved filesystem,
+same processes-gone caveat) — resume from any browser.
 
 ### U5 — Run it on a schedule (J4)
 

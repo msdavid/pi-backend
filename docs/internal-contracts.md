@@ -174,6 +174,160 @@ and `credentialKey`/`mcpServerUrl` locators — none of which is a secret value.
 - **Consumers:** WP-1.5/1.6/1.7 (session lifecycle events), WP-1.9 (vault events), WP-2.5
   (real dispatcher consumes the queue), WP-2.1 (job/run events).
 - **Fake:** `FakeWebhookSink` — records dispatched payloads.
+- **Enriched payload (`data`).** `WebhookEvent` carries an optional
+  `data?: Record<string, unknown>`, delivered verbatim in the payload. It is absent for
+  every event type except the balance thresholds (below), which need the at-crossing
+  balance that a later GET cannot recover. Existing thin payloads are byte-identical.
+
+### `BillingSink` — metering export seam (§11.4, WP-C5.2)
+
+- **File:** `packages/backend/src/domain/billing/sink.ts` (`BillingSink`, `MeteringEvent`).
+- **Spec:** console spec §11.4 (metering export). Wire schema `MeteringEvent` lives in
+  `@pi-managed/contracts` (single source a sink consumer validates each delivery against).
+- **Method:** `recordMetering(MeteringEvent) → Promise<void>`. At-least-once; MUST NOT
+  throw (metering is best-effort — never blocks or fails usage recording).
+- **Event shape.** Aggregated + **time-bucketed, never per-turn**: `{ idempotencyKey,
+  tenantId, bucketStart, bucketEnd, requestCount, inputTokens, outputTokens,
+  cacheCreationInputTokens, cacheReadInputTokens, totalTokens, usdCost }`. Recipients
+  dedup on `idempotencyKey` (stable per `(tenant, bucketStartEpochMs)`).
+- **Producer — `MeteringAggregator`** (`domain/billing/metering.ts`): the recorder's
+  `onMetering` hook. It sums each model request into a per-`(tenant, bucket)` accumulator
+  (bucket width `BILLING_METERING_BUCKET_MS`, default 60 s) and, on its flush loop, emits
+  one aggregated event per closed bucket AND (when `BILLING_ENABLED`) drains the ledger a
+  matching `debit` — the usage→debit bridge that powers §11.1 enforcement and the §11.6
+  threshold events. Idempotent both ways (export dedups on `idempotencyKey`; the debit on
+  the ledger's UNIQUE key). The accumulator is in-memory: `flushAll()` drains it on
+  graceful shutdown; a hard crash loses at most one un-flushed bucket window (bounded
+  under-count, never an over-charge).
+- **Impls:** `NoopBillingSink` (default; billing disabled) · `WebhookBillingSink`
+  (HTTPS + `X-Webhook-Signature`, SSRF-pinned egress). Selected by `createBillingSink`
+  from `BILLING_SINK`. Additional sinks (e.g. `stripe`) are additive implementations.
+
+### `EmailSender` (console spec §11.1 — WP-C5.1)
+
+- **File:** `packages/backend/src/domain/ports.ts` (`EmailSender`, `OutgoingEmail`).
+- **Spec:** console spec §11.1 (trial email-verification).
+- **Method:** `send({ to, template, vars }) → Promise<void>`. `template` names a
+  server-side template; `vars` are its substitutions (the verification `token` /
+  link). **No credential is ever passed through this seam** — the provider's API key
+  is the sender impl's own config, never the harness's.
+- **Default impl:** `NoopEmailSender` (`domain/email/noop-email-sender.ts`) — the
+  dev/test default (and the composition-root default via `NOOP_EMAIL_SENDER`). It
+  delivers nothing and **records** each message in `.sent` so a dev flow / integration
+  test can read the verification token (mirrors `NOOP_BILLING_SINK`).
+- **Real-sender contract:** a production saas deployment injects a real sender (SES /
+  Postmark / SMTP) as `createApp({ emailSender })`. The impl MUST: deliver
+  `template`+`vars` to `to`; never throw for a transient failure in a way that fails
+  sign-up (provisioning swallows send errors — the tenant can resend); and keep the
+  provider SDK + credential **entirely inside the impl** (§25.5 posture). It is
+  env-configured; the WP that ships a real sender adds its `EMAIL_*` env vars.
+- **Consumers:** `domain/billing/trial.ts` (`provisionTrial` / `resendVerification`),
+  wired through `onboardingRoutes` + `billingRoutes`.
+
+## Machine credit-surface (console spec §11.7 — WP-C5.1)
+
+The narrow, MACHINE-authenticated seam the billing adapter (`packages/billing-adapter`,
+WP-C5.3 — a separate process) calls to credit a tenant's ledger after a payment
+webhook. **It is an internal channel, not a public `/v1` route**, and it is NOT a
+tenant API key — it can credit any tenant, so it never rides the tenant auth path.
+
+- **Wire:** `POST /internal/billing/credit`. Body:
+  `{ tenantId, amountMicros (positive int µUSD), idempotencyKey, source?, metadata? }`.
+  Response `200 { entryId, applied, lifecycle, balanceMicros, balanceUsd }`.
+- **Auth:** `Authorization: Bearer <token>` where `<token>` is the per-deployment
+  shared secret `BILLING_PROVISION_TOKEN` (config). Constant-time compared (SHA-256
+  digest + `timingSafeEqual`), the **host-agent auth pattern** (`infra/sandbox-host-
+  pool/auth.ts`). **Fail-closed:** an unset/blank secret rejects EVERY request `401`.
+  On `PUBLIC_PATHS` so the tenant bearer-auth hook skips it; the plugin does its own
+  machine auth in a preHandler (a tenant API key → `401`).
+- **Idempotency (the money invariant, §11.7/§13):** the same `idempotencyKey` credits
+  the ledger EXACTLY once under webhook replay — enforced by the ledger's
+  `UNIQUE (tenant_id, idempotency_key)` constraint; a replay returns the existing entry
+  with `applied: false` and no balance change.
+- **File:** `packages/backend/src/api/billing-internal.ts` (`billingInternalRoutes`,
+  `BILLING_CREDIT_PATH`). Credit lands via `domain/billing/ledger.ts` `appendEntry`.
+
+## Adapter internal surface — checkout / portal / auto-charge (console spec §11.7–11.8 — WP-C5.3 F4)
+
+The REVERSE machine channel of the credit-surface: the adapter's inbound HTTP surface
+that the backend's SDK-free `/v1` link-out proxy calls to reach the payment engine. It
+closes the W15 top-up + auto-charge-controls gap. **Internal channel, not a `/v1`
+route**, same trust posture as the credit-surface (a shared machine bearer, NOT a
+tenant key).
+
+- **Direction:** backend → adapter (the credit-surface is adapter → backend). The
+  backend proxy resolves the tenant from its own auth, then forwards the tenant id.
+- **Wire** (`packages/billing-adapter/src/internal-api.ts`):
+  - `POST  /internal/adapter/checkout`    `{ tenantId, amountUsd }` → `{ url }` (the
+    reference engine needs an explicit amount; the adapter does the ONE USD→micros
+    conversion at the engine boundary, §11.9).
+  - `POST  /internal/adapter/portal`      `{ tenantId }` → `{ url }`; `409` when the
+    tenant has no saved payment method (NOT `404` — `404` means "no adapter").
+  - `GET   /internal/adapter/auto-charge?tenantId=…` → contract `AutoChargeConfig`;
+    an unconfigured tenant returns a default-OFF config (`200`, never `404`).
+  - `PATCH /internal/adapter/auto-charge` `{ tenantId, enabled?, thresholdUsd?, amountUsd? }`
+    → the updated contract `AutoChargeConfig`.
+- **Auth:** `Authorization: Bearer <BILLING_PROVISION_TOKEN>` — the SAME per-deployment
+  shared secret, constant-time compared (SHA-256 + `timingSafeEqual`), **fail-closed**
+  (unset/blank secret or a tenant key → `401`).
+- **Backend proxy** (`packages/backend/src/api/billing.ts`): the four
+  `/v1/tenant/billing/{checkout,portal,auto-charge}` routes forward here when
+  `BILLING_ADAPTER_URL` + `BILLING_PROVISION_TOKEN` are set; unset ⇒ `404` (the console's
+  no-adapter state, §11.8). An adapter `4xx` surfaces with its status; a `401`/`5xx` or
+  unreachable adapter collapses to `502`. **No payment SDK enters `packages/backend`**;
+  these routes issue URLs / read-write config only — no money math, no ledger write.
+
+## Balance-threshold events (console spec §11.6 — WP-C5.2)
+
+Webhook event types `tenant.balance_low` (threshold `BILLING_LOW_BALANCE_THRESHOLD_MICROS`,
+default $2, global config) and `tenant.balance_exhausted` fire when a ledger debit CROSSES
+the line — the tenant-notification half of the prepaid model, consumed alike by the console
+banner, email, and the auto-charge engine (WP-C5.3).
+
+- **Seam:** `domain/billing/threshold.ts` `appendEntryWithThresholdEvents(pool,
+  eventSource, input, thresholdMicros)` — `appendEntry` + crossing detection + emit through
+  the existing `WebhookEventSource`. Fires exactly once per crossing (`detectBalanceCrossings`
+  compares the applied entry's pre/post balance; `balance_low` only while post > 0, so a
+  debit straight to ≤ 0 fires only `balance_exhausted`). A ledger idempotency-key replay
+  (`applied: false`) emits nothing. The metering aggregator's drain is the production caller.
+- **Payload:** carries `data: TenantBalanceEventData` (`@pi-managed/contracts`) —
+  `{ entryId, tenantId, balanceMicros, balanceUsd, thresholdMicros, thresholdUsd, lifecycle }`
+  — the at-crossing balance a consumer needs without a round-trip. `entryId` (the causing
+  ledger debit) is the crossing's stable identity: the auto-charge engine derives its
+  charge idempotency key from it (`autocharge:<entryId>`), so a redelivered event charges
+  the card at most once (WP-C5.3 F1). Delivery is tenant-scoped (enqueued only to the
+  tenant's own webhooks), so events are cross-tenant isolated.
+
+## Billing adapter — payment-engine seam (console spec §11.7 — WP-C5.3)
+
+`packages/billing-adapter` (`@pi-managed/billing-adapter`) is the payment engine
+(Stripe reference), a **separate process** — the Stripe SDK is imported in exactly
+one file there (`src/stripe-engine.ts`) and appears in no other package (grep-asserted).
+It consumes the two backend seams above; it never rides a `/v1` route.
+
+- **`PaymentEngine` seam** (`src/types.ts`): `createCheckoutUrl` / `createPortalUrl`
+  (hosted URLs the console links out to — the console never sees a card, §11.9),
+  `verifyWebhook` (throws unless the signature verifies), `chargeOffSession`
+  (auto-charge). Stripe lives behind this one interface; a different engine is a
+  second impl. The single ledger-idempotency-key derivation
+  (`creditKeyForPayment(paymentRef) → "stripe:<id>"`, `src/credit-key.ts`) is shared
+  by the webhook consumer and the auto-charge engine, so a payment credits **exactly
+  once** no matter how many times, or through which path, it arrives.
+- **Consumes the machine credit-surface** via `HttpLedgerClient` (host-agent bearer
+  `BILLING_PROVISION_TOKEN`, real HTTP) — the sole way a payment reaches the ledger.
+- **Consumes `tenant.balance_low`** via `AutoChargeEngine.onLowBalance` — opt-in/off
+  by default; hard per-day and per-month caps (never exceeded); auto-disable + notify
+  after N consecutive failures. Saved-method + off-session charging are adapter-
+  internal; every auto-charge lands in the ledger like any top-up. The charge
+  idempotency key is derived from the crossing's stable `entryId` (`autocharge:<entryId>`,
+  WP-C5.3 F1), so a redelivered `tenant.balance_low` charges once; `onLowBalance` is
+  serialized per tenant (an in-process keyed mutex, F2) so concurrent crossings never
+  race the cap (a multi-process store must also reserve transactionally).
+- **Exposes the internal surface** (`src/internal-api.ts`) the backend proxy calls for
+  checkout / portal / auto-charge — see "Adapter internal surface" above.
+- **Config** is env-sourced and fail-closed (`src/config.ts`) — see `docs/deploy.md`
+  §"Billing adapter". No credential ships in the package; tests supply none (they
+  inject a fake engine or a locally-generated, obviously test-only signing secret).
 
 ## Supporting types
 

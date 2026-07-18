@@ -75,6 +75,17 @@ export interface IssuedApiKey {
 /** `^pmb_live_(<ulid>)_(<secret>)$` — captures the embedded key ULID for lookup. */
 const KEY_REGEX = new RegExp(`^${KEY_PREFIX}(${ULID_PATTERN})_([0-9A-HJKMNP-TV-Z]{${SECRET_LEN}})$`);
 
+/**
+ * Extract the `apikey_…` id embedded in a raw key, or `null` if malformed.
+ * WP-C1.2: console-session creation stores the key's id (FK → `api_keys`) so
+ * key revocation/deletion invalidates the session — after {@link verifyApiKey}
+ * has accepted the key, this recovers its id without a second DB read.
+ */
+export function apiKeyIdFromRawKey(rawKey: string): string | null {
+  const match = KEY_REGEX.exec(rawKey);
+  return match ? `apikey_${match[1]}` : null;
+}
+
 /** Generate a `SECRET_LEN`-char Crockford-Base32 secret (256 % 32 == 0 → no bias). */
 function randomSecret(): string {
   const bytes = randomBytes(SECRET_LEN);

@@ -2,12 +2,12 @@
  * Config → {@link BillingSink} construction (W8.2, §29.6).
  *
  * The composition root (`app.ts`) calls {@link createBillingSink} and hands the
- * result to `createUsageRecorder({ onMetering: createMeteringHook(sink) })` — the
- * wiring that turns the billing pipeline from dead code into a live seam.
+ * result to the `MeteringAggregator`, whose flush loop posts the aggregated,
+ * time-bucketed events to this sink (§11.4).
  *
  * Selection is `config.billingSink`:
  * - `none` (default) → {@link NOOP_BILLING_SINK}. Existing behavior, unchanged:
- *   the metering hook is still installed but discards every event.
+ *   the aggregator is not wired at all (billing disabled) — no events, no egress.
  * - `webhook` → {@link WebhookBillingSink} against `billingWebhookUrl`, signed with
  *   `billingWebhookSecret`. Both are required; a missing one is a **boot error**
  *   (a billing sink that silently drops revenue events is worse than no boot).
