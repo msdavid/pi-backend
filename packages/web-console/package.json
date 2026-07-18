@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Pi Managed Backend — web console. Vite + React SPA served by the backend at /console (tmp/console-spec.md).",
+  "description": "Pi Managed Backend — web console. Vite + React SPA served by the backend at /console (docs/console-spec.md).",
   "files": [
     "dist"
   ],

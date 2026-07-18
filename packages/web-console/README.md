@@ -1,7 +1,7 @@
 # `@pi-managed/web-console` — Pi Console
 
 The browser surface over the public `/v1` API, served by the backend at
-`/console` (spec: `tmp/console-spec.md`; design: `tmp/console.md`). Phase 1
+`/console` (spec: `docs/console-spec.md`; design: `docs/console.md`). Phase 1
 (WP-C1.1–C1.8 — sign-in, app shell, sessions read surface), phase 2
 (WP-C2.1–C2.6 — live SSE trace, steer/interrupt/confirm, Tree/Outputs/Fork,
 jobs + memory stores, ambient status, CLI deep links), phase 3
@@ -28,7 +28,7 @@ the streaming transport by `test/phase2-gate/api-surface.gate.test.ts`).
   route component is a lazy `*.lazy.tsx` module (route-level code splitting,
   console-spec §12.1).
 - **TanStack Query** — server state; provider wired in `src/main.tsx`.
-- **CSS Modules + custom-property design tokens** (decided, `tmp/console.md`
+- **CSS Modules + custom-property design tokens** (decided, `docs/console.md`
   §10.2 — zero styling dependencies). Tokens are CSS custom properties on
   `:root` in `src/styles/tokens.css`; components import `*.module.css` and
   consume tokens only. Light is default, dark comes from

@@ -3,7 +3,7 @@
 -- Console sessions (WP-C1.2, console spec §4.7). Binds a browser cookie to a
 -- validated API key so the web console never holds the key in JS-readable
 -- storage (console spec §4.1). Storage is a Postgres table (decided,
--- tmp/console.md §10.1): sign-out and key revocation delete/deny server-side
+-- docs/console.md §10.1): sign-out and key revocation delete/deny server-side
 -- state immediately, and the sliding TTL (§4.6) is a column update. The raw
 -- session token is NEVER stored — only its SHA-256 hash (a leaked table row
 -- cannot be replayed as a cookie).

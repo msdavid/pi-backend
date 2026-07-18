@@ -9,7 +9,7 @@
  *     `.lazy()` — route-level code splitting keeps the entry bundle inside
  *     the §12.1 budget (enforced by scripts/check-budget.mjs).
  *   - Feature routes live in src/features/<family>/ mirroring
- *     backend/src/api and contracts/src 1:1 (tmp/console.md §6).
+ *     backend/src/api and contracts/src 1:1 (docs/console.md §6).
  */
 import {
   createRootRoute,

@@ -1,6 +1,6 @@
 /**
  * Design tokens (WP-C1.4) — the console's design language as CSS custom
- * properties (tmp/console.md §4): restrained developer-platform monochrome,
+ * properties (docs/console.md §4): restrained developer-platform monochrome,
  * one accent, semantic colors reserved for status only. Components consume
  * tokens only — never raw color values (enforced by src/styles/tokens.test.ts).
  *

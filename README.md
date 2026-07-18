@@ -7,6 +7,7 @@ The service is **tailored for Pi** — it adapts the *concepts* of managed agent
 - **Architecture:** [`docs/architecture.md`](docs/architecture.md) (layered overview — start here)
 - **API reference:** [`docs/api-reference.md`](docs/api-reference.md) (wire contract)
 - **Deployment:** [`docs/deploy.md`](docs/deploy.md) (full deploy guide)
+- **Web console:** [`docs/console.md`](docs/console.md) (design), [`docs/console-spec.md`](docs/console-spec.md) (normative spec), [`docs/console-user-journeys.md`](docs/console-user-journeys.md) (journeys)
 
 ---
 

@@ -9,7 +9,7 @@
  * scope. `write` adds inline actions (session interaction, job trigger), not
  * sections. Settings is the one purely-management top-level section (API
  * keys · webhooks · tenant — admin surfaces per §6.2 and the sidebar sketch
- * in tmp/console.md §5, "admin scope only"), so it is hidden — not disabled —
+ * in docs/console.md §5, "admin scope only"), so it is hidden — not disabled —
  * without `admin`.
  *
  * No top-level item differs by MODE (billing[saas] and health[solo/team]

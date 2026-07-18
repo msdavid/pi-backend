@@ -14,7 +14,7 @@ export const Route = createLazyRoute("/resources")({
   component: ResourcesLayout,
 });
 
-/** The §7.1 submenu entries, in sidebar-sketch order (tmp/console.md §5). */
+/** The §7.1 submenu entries, in sidebar-sketch order (docs/console.md §5). */
 const SECTIONS = [
   { label: "Environments", to: "/resources/environments" },
   { label: "Vaults", to: "/resources/vaults" },

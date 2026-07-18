@@ -2,7 +2,7 @@ import { cx } from "./cx.js";
 import styles from "./status-chip.module.css";
 
 /**
- * ONE lifecycle vocabulary for every resource (tmp/console.md §4): session
+ * ONE lifecycle vocabulary for every resource (docs/console.md §4): session
  * status, stop reason, job state, run outcome, credential validity and
  * resource archival all map onto the same five tones. Semantic color is
  * reserved for status — nothing else in the console uses these tokens.

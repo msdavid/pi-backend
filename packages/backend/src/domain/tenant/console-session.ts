@@ -4,7 +4,7 @@
  * Binds a random browser-cookie token to a validated API key so the console
  * never holds the key in JS-readable storage (§4.1). Storage is a Postgres
  * table — `console_sessions`, migration 041 — per the decided design
- * (tmp/console.md §10.1): sign-out and key revocation take effect server-side
+ * (docs/console.md §10.1): sign-out and key revocation take effect server-side
  * immediately, the sliding TTL (§4.6) is a column update, and a future "list
  * active console sessions" needs no new store.
  *
@@ -27,7 +27,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { query, type Pool } from "../../infra/db/index.js";
 import type { ConsoleMode } from "@pi-managed/contracts";
 
-/** Per-mode sliding-TTL defaults in seconds (console spec §4.6, decided tmp/console.md §10.3). */
+/** Per-mode sliding-TTL defaults in seconds (console spec §4.6, decided docs/console.md §10.3). */
 export const CONSOLE_SESSION_TTL_DEFAULTS: Record<ConsoleMode, number> = {
   solo: 30 * 24 * 60 * 60, // 30 days
   team: 7 * 24 * 60 * 60, // 7 days
