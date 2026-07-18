@@ -12,6 +12,13 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { z } from "zod";
+// The wire *contract* for the console mode (single zod source, CONVENTIONS
+// "Validation") — the enum is part of the GET /console/config response shape.
+import {
+  ConsoleMode,
+  DEFAULT_LOW_BALANCE_THRESHOLD_MICROS,
+  DEFAULT_METERING_BUCKET_MS,
+} from "@pi-managed/contracts";
 
 // ---------------------------------------------------------------------------
 // Schema
@@ -174,6 +181,19 @@ export const ConfigSchema = z.object({
    * unless it opts in). The SaaS shape sets `ONBOARDING_ENABLED=true` explicitly.
    */
   onboardingEnabled: z.boolean().default(false),
+  /**
+   * Console presentation mode override (console spec §3.2), returned by the public
+   * `GET /console/config`. Env `CONSOLE_MODE` (`solo` | `team` | `saas`). Unset ⇒
+   * derived at the serve hook: `onboardingEnabled` → `saas`, else `solo`. A
+   * presentation concern only — no `/v1` behavior differs by mode.
+   */
+  consoleMode: ConsoleMode.optional(),
+  /**
+   * Console-session sliding TTL override in **seconds** (console spec §4.6).
+   * Env `CONSOLE_SESSION_TTL`. Unset ⇒ the per-mode default (solo 30 d, team
+   * 7 d, saas 24 h) resolved by `api/console-session.ts`.
+   */
+  consoleSessionTtl: z.number().int().positive().optional(),
 
   /**
    * Vault secret-encryption key (hex 64-char or base64, 32 bytes once decoded).
@@ -291,6 +311,53 @@ export const ConfigSchema = z.object({
    * `X-Webhook-Signature`, §23.4). Env `BILLING_WEBHOOK_SECRET`.
    */
   billingWebhookSecret: z.string().min(1).optional(),
+  /**
+   * WP-C5.1 (console spec §11.1): enable prepaid ledger enforcement (fail-soft
+   * suspension of new work for a saas tenant at balance ≤ 0) and the trial
+   * email-verification grant. Env `BILLING_ENABLED`, default `false` — this is
+   * the deliberate saas switch, distinct from the presentation `consoleMode`
+   * (which by §3.3 may not change any `/v1` behavior). Solo/team leave it off and
+   * are never suspended or balance-gated.
+   */
+  billingEnabled: z.boolean().default(false),
+  /**
+   * WP-C5.1 (console spec §11.7): shared secret for the machine credit-surface
+   * (`POST /internal/billing/credit`) the billing adapter calls to credit the
+   * ledger. Host-agent pattern (constant-time bearer). Env
+   * `BILLING_PROVISION_TOKEN`. Unset ⇒ the surface is fail-closed (rejects every
+   * request). NOT a tenant API key.
+   */
+  billingProvisionToken: z.string().min(1).optional(),
+  /**
+   * WP-C5.3 (console spec §11.7–11.8): base URL of the billing-adapter's internal
+   * surface (a SEPARATE process). When set — together with `billingProvisionToken`,
+   * the shared machine secret presented back over this channel — the tenant billing
+   * proxy routes (`/v1/tenant/billing/{checkout,portal,auto-charge}`) forward to the
+   * adapter (the SDK-free link-out seam). Env `BILLING_ADAPTER_URL`. **Unset ⇒ those
+   * four routes 404 and the console renders the no-adapter state (§11.8).** The Stripe
+   * SDK never enters the backend — this is an HTTP call to the adapter.
+   */
+  billingAdapterUrl: z.string().url().optional(),
+  /**
+   * WP-C5.2 (console spec §11.6): the low-balance threshold in µUSD. When a usage
+   * debit crosses DOWN through this line the backend fires the `tenant.balance_low`
+   * webhook event (once per crossing). Env `BILLING_LOW_BALANCE_THRESHOLD_MICROS`,
+   * default $2 ({@link DEFAULT_LOW_BALANCE_THRESHOLD_MICROS}). Global (not per-tenant),
+   * consistent with the other `BILLING_*` switches; 0 disables the low event
+   * (exhaustion still fires).
+   */
+  billingLowBalanceThresholdMicros: z
+    .number()
+    .int()
+    .nonnegative()
+    .default(DEFAULT_LOW_BALANCE_THRESHOLD_MICROS),
+  /**
+   * WP-C5.2 (console spec §11.4): the metering aggregation bucket width in ms. Usage
+   * is summed per tenant per wall-clock bucket into one export event + one ledger
+   * debit (never per-turn). Env `BILLING_METERING_BUCKET_MS`, default 60 000 (1 min).
+   * Shorter ⇒ tighter enforcement latency but more events; must be > 0.
+   */
+  billingMeteringBucketMs: z.number().int().positive().default(DEFAULT_METERING_BUCKET_MS),
 
   // OTEL passthrough (WP-5.4 finalizes span names / resource attrs).
   otelExporterOtlpEndpoint: z.string().optional(),
@@ -324,6 +391,8 @@ type ConfigFile = Partial<{
   sandboxLivenessIntervalMs: number;
   allowInsecureHostAgent: boolean;
   onboardingEnabled: boolean;
+  consoleMode: ConsoleMode;
+  consoleSessionTtl: number;
   vaultKey: string;
   vaultKeyFile: string;
   allowEphemeralVaultKey: boolean;
@@ -341,6 +410,11 @@ type ConfigFile = Partial<{
   billingSink: BillingSinkKind;
   billingWebhookUrl: string;
   billingWebhookSecret: string;
+  billingEnabled: boolean;
+  billingProvisionToken: string;
+  billingAdapterUrl: string;
+  billingLowBalanceThresholdMicros: number;
+  billingMeteringBucketMs: number;
   otelExporterOtlpEndpoint: string;
   otelServiceName: string;
   otelResourceAttributes: string;
@@ -487,6 +561,11 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
       env.ONBOARDING_ENABLED !== undefined
         ? env.ONBOARDING_ENABLED === "true"
         : undefined,
+    consoleMode: env.CONSOLE_MODE,
+    consoleSessionTtl:
+      env.CONSOLE_SESSION_TTL !== undefined
+        ? Number(env.CONSOLE_SESSION_TTL)
+        : undefined,
     vaultKey: env.VAULT_KEY ?? env.MSB_SECRET_ENCRYPTION_KEY,
     vaultKeyFile: env.VAULT_KEY_FILE ?? env.MSB_SECRET_ENCRYPTION_KEY_FILE,
     allowEphemeralVaultKey:
@@ -523,6 +602,18 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
     billingSink: env.BILLING_SINK,
     billingWebhookUrl: env.BILLING_WEBHOOK_URL,
     billingWebhookSecret: env.BILLING_WEBHOOK_SECRET,
+    billingEnabled:
+      env.BILLING_ENABLED !== undefined ? env.BILLING_ENABLED === "true" : undefined,
+    billingProvisionToken: env.BILLING_PROVISION_TOKEN,
+    billingAdapterUrl: env.BILLING_ADAPTER_URL,
+    billingLowBalanceThresholdMicros:
+      env.BILLING_LOW_BALANCE_THRESHOLD_MICROS !== undefined
+        ? Number(env.BILLING_LOW_BALANCE_THRESHOLD_MICROS)
+        : undefined,
+    billingMeteringBucketMs:
+      env.BILLING_METERING_BUCKET_MS !== undefined
+        ? Number(env.BILLING_METERING_BUCKET_MS)
+        : undefined,
     configFile: env.CONFIG_FILE,
   tierConfigFile: env.TIER_CONFIG_FILE,
     otelExporterOtlpEndpoint: env.OTEL_EXPORTER_OTLP_ENDPOINT,

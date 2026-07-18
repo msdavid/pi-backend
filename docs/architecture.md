@@ -62,7 +62,7 @@ placed, nothing is specified. Every deeper section expands something introduced 
 flowchart LR
     subgraph clients["Clients"]
         pi["Local Pi<br/>+ client extension<br/>/remote:* commands"]
-        console["Web console<br/>read-only browser SPA"]
+        console["Web console<br/>React browser SPA"]
         anyapi["Any API client"]
     end
 
@@ -87,7 +87,7 @@ flowchart LR
     llm["Model providers<br/>tenant's own keys"]
 
     pi -->|REST + SSE /v1| httpedge
-    console -->|/console + GET /v1| httpedge
+    console -->|/console + /v1| httpedge
     anyapi -->|REST /v1| httpedge
     shw -->|claim work / post results| httpedge
     httpedge --> dom
@@ -167,8 +167,10 @@ fetches the outputs — or just reads the completion notice the extension surfac
   a roster of subagents, each in its own context-isolated **thread**. **Goals** keep a
   session self-continuing across turns; **tasks** are its per-session todo list.
 - **Webhooks** push thin signed notifications (`type` + `id`) to registered URLs on
-  lifecycle events. The **web console** is a read-only browser SPA served by the
-  backend itself at `/console`. **Files** are independently uploaded resources;
+  lifecycle events. The **web console** is a React browser SPA served by the backend
+  itself at `/console`; it signs in via a cookie session (`POST /console/session`) and
+  drives the public `/v1` API — reads and writes, bounded by the signed-in key's
+  scopes. **Files** are independently uploaded resources;
   **custom tools** let the caller's own code execute a tool and post the result back;
   **permission policies** can force per-tool confirmation, pausing the session with
   `requires_action` until the user answers.
@@ -217,7 +219,7 @@ has a bug. (Expanded in the linked sections; wire shapes in
 | Idempotency key | Client header on mutating POSTs; 24 h byte-for-byte replay, conflict on reuse with a new body | [api-ref](api-reference.md) |
 | Sandbox host / host agent | A KVM machine in the multi-host pool / its authenticated per-host control API | §4.4 |
 | Client extension | `@pi-managed/client` — `/remote:*` commands, `remote_*` tools, live-view panel in local Pi | §4.1 |
-| Web console | Read-only vanilla-JS SPA served at `/console` | §4.1 |
+| Web console | React SPA served at `/console`, cookie-session auth over the public `/v1` API | §4.1 |
 
 ---
 
@@ -233,7 +235,7 @@ has a bug. (Expanded in the linked sections; wire shapes in
 | **Host agents** (multi-host) | Per-KVM-host HTTPS server wrapping that host's local sandbox provider | Control plane only, bearer token + mutual TLS |
 | **Self-hosted worker** | Subscriber-run CLI (`pi-managed-worker`); poll or webhook-wake modes | Backend REST only, outbound HTTPS, never listens |
 | **Local Pi** | The user's own Pi process with the client extension loaded | Backend REST + SSE |
-| **Browser** | The web console SPA | `GET /console` assets + read-only `/v1` calls |
+| **Browser** | The web console SPA | `GET /console` assets; cookie-session auth via `POST /console/session`; scope-bounded `/v1` reads and writes (mutations require `X-Console-Csrf`) |
 
 State: **Postgres 16** (control plane; migrations run forward-only on boot), the
 **object store** (local filesystem by default, any S3-compatible store or GCS bucket; JSONL, files,
@@ -248,7 +250,7 @@ JSONL write path — deliberately durable, not `/tmp`).
 | `contracts` | Library (zod + types) | **The synchronization artifact**: schemas mirror `api-reference.md` 1:1; consumed by backend and client extension; golden tests enforce write-only-secret invariants |
 | `client-extension` | Pi extension (in-process with local Pi) | Commands, tools, live view; API key kept in Pi's AuthStorage, settings hold only a reference |
 | `worker` | Standalone CLI | Deliberately **zero-dependency** — wire shapes re-declared locally so subscriber infrastructure never depends on backend internals |
-| `web-console` | Static browser SPA | No framework, no deps; backend serves its `dist/` at `/console` (same origin, so no CORS) |
+| `web-console` | Static browser SPA | Vite + React + TanStack Router/Query, everything bundled (CSP `default-src 'self'`); backend serves its `dist/` at `/console` (same origin, so no CORS) |
 | `testkit` | Test-time library | A fake per port + published conformance kits; depends on `backend` for port *types*; backend uses it only as a devDependency |
 
 Two deliberate wrinkles: the `testkit`↔`backend` relationship looks circular but is

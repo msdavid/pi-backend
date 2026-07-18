@@ -2,7 +2,7 @@
  * Sessions API routes (WP-1.6, §"Sessions").
  *
  * - `POST /v1/sessions`               — create (`Idempotency-Key` required).
- * - `GET /v1/sessions`                — list (paginated; `status`/`agentId`/`environmentId` filters).
+ * - `GET /v1/sessions`                — list (paginated; `status`/`stopReason`/`agentId`/`environmentId` filters).
  * - `GET /v1/sessions/:id`            — retrieve (status, usage, config).
  * - `PATCH /v1/sessions/:id`         — update `agent.tools`/`agent.mcpServers` (idle only).
  * - `DELETE /v1/sessions/:id`        — soft-delete (archives JSONL; resources untouched) → `204`.
@@ -25,7 +25,7 @@ import { requireScopeByMethod } from "./middleware/scope.js";
 import { type Pool } from "../infra/db/index.js";
 import { ApiError } from "../domain/errors.js";
 import { parseListParams, paginate } from "./middleware/pagination.js";
-import { SessionPatch } from "@pi-managed/contracts";
+import { SessionListParams, SessionPatch } from "@pi-managed/contracts";
 import type { ObjectStore, SandboxHandle, SandboxProvider } from "../domain/ports.js";
 import {
   createSession,
@@ -40,11 +40,19 @@ import {
   getSessionMessages,
   getSessionUsage,
 } from "../domain/session/index.js";
+import { assertCanStartWork } from "../domain/billing/index.js";
 
 export interface SessionRoutesOptions {
   pool: Pool;
   /** Optional object store for JSONL reads (entries/tree/messages). */
   objectStore?: ObjectStore;
+  /**
+   * WP-C5.1 (console spec §11.1): when `true` (saas, config `BILLING_ENABLED`),
+   * creating/forking a session is blocked for a suspended / unverified-trial
+   * tenant (balance ≤ 0) — a NEW-work checkpoint reading ONLY local ledger state.
+   * Reads are never gated. Solo/team leave this `false` and are never blocked.
+   */
+  billingEnabled?: boolean;
   /**
    * Optional sandbox provider. Supplied → `GET /v1/sessions/:id/metrics` is mounted and
    * samples the session's live VM (§26.4). Absent (no sandboxing configured) → the route
@@ -89,25 +97,45 @@ export const sessionRoutes: FastifyPluginAsync<SessionRoutesOptions> = async (
   app.post("/v1/sessions", async (req: FastifyRequest, reply: FastifyReply) => {
     const ctx = requireCtx(req);
     requireIdempotencyKey(req);
+    // Fail-soft suspension (§11.1): a suspended/unverified saas tenant may not
+    // start new work. Reads local ledger only; no-op for solo/team.
+    await assertCanStartWork(opts.pool, ctx.tenantId, opts.billingEnabled ?? false);
     const created = await createSession(opts.pool, ctx, req.body);
     return reply.status(201).send(created);
   });
 
-  // GET /v1/sessions — list (paginated; status/agentId/environmentId filters).
+  // GET /v1/sessions — list (paginated; status/stopReason/agentId/environmentId
+  // filters, combinable — e.g. ?status=idle&stopReason=requires_action).
   app.get("/v1/sessions", async (req: FastifyRequest, reply: FastifyReply) => {
     const ctx = requireCtx(req);
+    // `limit`/`cursor` keep the pagination helper's clamp-don't-reject semantics
+    // (§"Cursor pagination"); the filters are validated against the contracts
+    // `SessionListParams` enums/id shapes so an unknown value (?status=bogus) is a
+    // 422 `invalid_request`, never a silent empty page.
     const { limit, cursor } = parseListParams(req);
-    const q = (req.query ?? {}) as {
-      status?: string;
-      agentId?: string;
-      environmentId?: string;
-    };
+    const q = (req.query ?? {}) as Record<string, unknown>;
+    const filters = SessionListParams.safeParse({
+      status: q.status,
+      stopReason: q.stopReason,
+      agentId: q.agentId,
+      environmentId: q.environmentId,
+    });
+    if (!filters.success) {
+      throw new ApiError(
+        422,
+        "invalid_request",
+        `invalid session list query: ${filters.error.issues
+          .map((i) => `${i.path.join(".")}: ${i.message}`)
+          .join("; ")}`,
+      );
+    }
     const result = await listSessions(opts.pool, ctx, {
       limit,
       cursor,
-      status: q.status as never,
-      agentId: q.agentId,
-      environmentId: q.environmentId,
+      status: filters.data.status,
+      stopReason: filters.data.stopReason,
+      agentId: filters.data.agentId,
+      environmentId: filters.data.environmentId,
     });
     return reply.status(200).send(paginate(result.data, result.nextCursor ?? undefined));
   });
@@ -161,6 +189,8 @@ export const sessionRoutes: FastifyPluginAsync<SessionRoutesOptions> = async (
   app.post("/v1/sessions/:id/fork", async (req: FastifyRequest, reply: FastifyReply) => {
     const ctx = requireCtx(req);
     requireIdempotencyKey(req);
+    // A fork starts a NEW session — same suspension gate as create (§11.1).
+    await assertCanStartWork(opts.pool, ctx.tenantId, opts.billingEnabled ?? false);
     const { id } = req.params as { id: string };
     const forked = await forkSession(opts.pool, ctx, id);
     return reply.status(201).send(forked);

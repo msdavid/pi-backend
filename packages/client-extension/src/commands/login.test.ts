@@ -26,6 +26,15 @@ const TENANT: TenantInfo = {
     fileStorage: 0,
     tokenSpendUsd: 0.5,
   },
+  quotaLimits: {
+    concurrentSessions: 10,
+    concurrentSandboxes: 10,
+    maxJobs: 100,
+    maxVaultCredentials: 100,
+    maxMemoryStores: 25,
+    maxFileStorageBytes: 10737418240,
+    monthlyTokenSpendUsd: 200,
+  },
 };
 
 /** Mock UI returning scripted `input` answers keyed by dialog title. */

@@ -1,0 +1,45 @@
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+/* Status dot; inherits the tone's text color. */
+.chip::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: currentColor;
+}
+
+.neutral {
+  color: var(--status-neutral-fg);
+  background: var(--status-neutral-bg);
+}
+
+.running {
+  color: var(--status-running-fg);
+  background: var(--status-running-bg);
+}
+
+.success {
+  color: var(--status-success-fg);
+  background: var(--status-success-bg);
+}
+
+.warning {
+  color: var(--status-warning-fg);
+  background: var(--status-warning-bg);
+}
+
+.danger {
+  color: var(--status-danger-fg);
+  background: var(--status-danger-bg);
+}

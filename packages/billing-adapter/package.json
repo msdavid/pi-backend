@@ -1,0 +1,33 @@
+{
+  "name": "@pi-managed/billing-adapter",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Payment-engine adapter (Stripe reference) for the prepaid ledger (console spec §11.7, WP-C5.3). The payment SDK appears in NO other package.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "stripe": "^22.3.0"
+  },
+  "devDependencies": {
+    "@pi-managed/backend": "workspace:*",
+    "@pi-managed/contracts": "workspace:*",
+    "@testcontainers/postgresql": "^10.18.1",
+    "@types/node": "^26.1.1",
+    "pino": "^10.1.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}

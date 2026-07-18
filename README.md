@@ -137,7 +137,7 @@ packages/
   contracts          # zod schemas + TS types mirroring api-reference.md
   testkit            # shared test fixtures (fakes, conformance kits)
   worker             # default self-hosted worker (§10.4)
-  web-console        # read-only web UI (§26.6)
+  web-console        # web console UI (§26.6, console spec)
 docs/
   architecture.md    # layered architecture overview
   user-journeys.md   # persona journeys (platform admin / tenant admin / user)

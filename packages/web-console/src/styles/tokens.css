@@ -1,0 +1,177 @@
+/**
+ * Design tokens (WP-C1.4) — the console's design language as CSS custom
+ * properties (tmp/console.md §4): restrained developer-platform monochrome,
+ * one accent, semantic colors reserved for status only. Components consume
+ * tokens only — never raw color values (enforced by src/styles/tokens.test.ts).
+ *
+ * Theming contract (see src/lib/theme.ts):
+ *   - Tokens are CSS custom properties on :root. Components consume tokens
+ *     only — never raw color values.
+ *   - Light is the default. Dark applies either via the OS preference
+ *     (prefers-color-scheme, when the user hasn't chosen) or via an explicit
+ *     `data-theme="dark"` attribute on <html>; `data-theme="light"` forces
+ *     light regardless of the OS.
+ *   - The dark token block is therefore duplicated once below (a media query
+ *     cannot be combined with an attribute selector in pure CSS). Keep the
+ *     two dark blocks identical (also enforced by tokens.test.ts).
+ *   - Non-color tokens (type scale, spacing, radii) are theme-invariant and
+ *     live only in the light :root block.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* --- Color: surfaces & text ------------------------------------------- */
+  --color-bg: #ffffff;
+  --color-surface: #f6f7f9; /* recessed panels: table headers, code blocks */
+  --color-surface-raised: #ffffff; /* overlays: dialogs, toasts, menus */
+  --color-backdrop: rgba(23, 24, 26, 0.5);
+  --color-fg: #17181a;
+  --color-fg-muted: #5c5f66;
+  --color-border: #e2e4e8;
+  --color-border-strong: #c9ccd3;
+
+  /* --- Color: accent (primary actions, live/running states) -------------- */
+  --color-accent: #4459d4;
+  --color-accent-hover: #3949b8;
+  --color-accent-fg: #ffffff; /* text/icon on solid accent */
+  --color-focus: #4459d4; /* focus rings */
+
+  /* --- Color: destructive actions ---------------------------------------- */
+  --color-danger: #c2261f;
+  --color-danger-hover: #a81f19;
+  --color-danger-fg: #ffffff; /* text/icon on solid danger */
+
+  /* --- Color: status palette (one lifecycle vocabulary — StatusChip) ----- */
+  --status-neutral-fg: #5c5f66;
+  --status-neutral-bg: #eef0f3;
+  --status-running-fg: #3949b8;
+  --status-running-bg: #e6e9fa;
+  --status-success-fg: #176b33;
+  --status-success-bg: #ddf3e4;
+  --status-warning-fg: #8a5c00;
+  --status-warning-bg: #faf0d0;
+  --status-danger-fg: #b02a22;
+  --status-danger-bg: #fbe5e3;
+
+  /* --- Elevation ---------------------------------------------------------- */
+  --shadow-overlay: 0 8px 24px rgba(23, 24, 26, 0.18);
+
+  /* --- Typography (fixed ~6-style scale, console.md §4) ------------------ */
+  --font-body:
+    system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono",
+    monospace;
+
+  --font-size-display: 1.5rem; /* page titles */
+  --font-size-title: 1.125rem; /* entity names, dialog titles */
+  --font-size-section: 0.875rem; /* section headings (weight carries it) */
+  --font-size-body: 0.875rem;
+  --font-size-small: 0.75rem; /* metadata, chips, table headers */
+  --font-size-mono: 0.8125rem; /* ids, keys, JSON, logs */
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+
+  --line-height-tight: 1.3;
+  --line-height-body: 1.5;
+
+  /* --- Spacing scale ------------------------------------------------------ */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+
+  /* --- Radii -------------------------------------------------------------- */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-full: 999px;
+}
+
+/* --- Breakpoint (documented here, not a token) ---------------------------
+   THE phone breakpoint is 720px — the console's single responsive
+   breakpoint (WP-C4.3; console-spec §10.5). CSS cannot var() inside a
+   media query, so it is not a custom property: each phone-width module
+   (shell.module.css, conversation.module.css, interact-panel.module.css,
+   dialog.module.css) writes `@media (max-width: 720px)` literally. One
+   value only — any other max-width media query fails
+   `test/phase4-gate/responsive-css.gate.test.ts`. */
+
+/* OS dark preference, unless the user forced light. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --color-bg: #131417;
+    --color-surface: #1b1d22;
+    --color-surface-raised: #1f2127;
+    --color-backdrop: rgba(0, 0, 0, 0.6);
+    --color-fg: #e8e9eb;
+    --color-fg-muted: #9a9da4;
+    --color-border: #2b2d33;
+    --color-border-strong: #3d4048;
+
+    --color-accent: #7686e8;
+    --color-accent-hover: #8b99ee;
+    --color-accent-fg: #131417;
+    --color-focus: #7686e8;
+
+    --color-danger: #e5534b;
+    --color-danger-hover: #ef6961;
+    --color-danger-fg: #131417;
+
+    --status-neutral-fg: #9a9da4;
+    --status-neutral-bg: #23252b;
+    --status-running-fg: #97a6f2;
+    --status-running-bg: #1d2340;
+    --status-success-fg: #4bc272;
+    --status-success-bg: #16281d;
+    --status-warning-fg: #d4a72c;
+    --status-warning-bg: #2a2410;
+    --status-danger-fg: #f0716a;
+    --status-danger-bg: #301b19;
+
+    --shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* Explicit dark override — keep identical to the media-query block above. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-bg: #131417;
+  --color-surface: #1b1d22;
+  --color-surface-raised: #1f2127;
+  --color-backdrop: rgba(0, 0, 0, 0.6);
+  --color-fg: #e8e9eb;
+  --color-fg-muted: #9a9da4;
+  --color-border: #2b2d33;
+  --color-border-strong: #3d4048;
+
+  --color-accent: #7686e8;
+  --color-accent-hover: #8b99ee;
+  --color-accent-fg: #131417;
+  --color-focus: #7686e8;
+
+  --color-danger: #e5534b;
+  --color-danger-hover: #ef6961;
+  --color-danger-fg: #131417;
+
+  --status-neutral-fg: #9a9da4;
+  --status-neutral-bg: #23252b;
+  --status-running-fg: #97a6f2;
+  --status-running-bg: #1d2340;
+  --status-success-fg: #4bc272;
+  --status-success-bg: #16281d;
+  --status-warning-fg: #d4a72c;
+  --status-warning-bg: #2a2410;
+  --status-danger-fg: #f0716a;
+  --status-danger-bg: #301b19;
+
+  --shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.5);
+}

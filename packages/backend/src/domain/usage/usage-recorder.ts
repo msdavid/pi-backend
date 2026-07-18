@@ -45,10 +45,11 @@ export interface UsageRecorderOptions {
   /** Price table; defaults to {@link loadPriceTable}. */
   priceTable?: PriceTable;
   /**
-   * WP-5.3 metering seam (§29.6): invoked after each successful `record()`
-   * with the tenant id, model, token counts, and derived USD the recorder
-   * already resolved. Wire via `createMeteringHook(sink)` (billing/metering.ts);
-   * fire-and-forget — the hook must never throw or block usage recording.
+   * WP-5.3 / WP-C5.2 metering seam (§29.6, §11.4): invoked after each successful
+   * `record()` with the tenant id, model, token counts, and derived USD the recorder
+   * already resolved. Wire via `MeteringAggregator.ingest` (billing/metering.ts) — a
+   * synchronous accumulate; the aggregator flushes time-bucketed events later. The
+   * hook must never throw or block usage recording.
    */
   onMetering?: MeteringHook;
 }
@@ -155,14 +156,17 @@ export class PgUsageRecorder implements UsageRecorder {
       { [SpanAttrs.TENANT_ID]: tenantId, [SpanAttrs.SESSION_ID]: sessionId },
     );
 
-    // WP-5.3 metering seam (§29.6): emit a metering event to the billing sink.
-    // Fire-and-forget; the hook swallows errors and never blocks recording.
+    // WP-5.3 / WP-C5.2 metering seam (§29.6, §11.4): hand the request to the metering
+    // aggregator. Synchronous accumulate (fire-and-forget); the aggregator buckets it
+    // and flushes an aggregated event later — never blocks recording.
     this.onMetering?.({
       tenantId,
       sessionId,
       model,
       inputTokens: tokens.inputTokens,
       outputTokens: tokens.outputTokens,
+      cacheCreationInputTokens: tokens.cacheCreationInputTokens,
+      cacheReadInputTokens: tokens.cacheReadInputTokens,
       usd,
       recordedAt: new Date(),
     });

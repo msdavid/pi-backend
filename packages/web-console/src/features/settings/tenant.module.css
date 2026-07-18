@@ -1,0 +1,114 @@
+.title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-title);
+}
+
+.microcopy {
+  margin: 0;
+  max-width: 60ch;
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-small);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.facts {
+  display: flex;
+  gap: var(--space-5);
+  margin: 0;
+}
+
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.factLabel {
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-small);
+}
+
+.factValue {
+  margin: 0;
+}
+
+.section {
+  margin: var(--space-6) 0 var(--space-3);
+  font-size: var(--font-size-section);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Quota utilization bar (display scaling of the Used/Limit columns). */
+.track {
+  display: inline-block;
+  width: 8rem;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--color-border);
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--color-accent);
+}
+
+.controls {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  margin-bottom: var(--space-3);
+}
+
+.export {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  /* Align the button with the select inputs, under their labels. */
+  margin-top: 1.25rem;
+}
+
+.exportNote {
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-small);
+}
+
+.range {
+  margin: 0 0 var(--space-3);
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-small);
+}
+
+.trend {
+  margin-bottom: var(--space-3);
+  color: var(--color-accent);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono);
+}
+
+.noUser {
+  color: var(--color-fg-muted);
+}
+
+.idLink {
+  color: inherit;
+  border-radius: var(--radius-sm);
+}
+
+.idLink:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
+}

@@ -45,6 +45,7 @@ import {
   sha256Hex,
   listMemoryVersions,
   getMemoryVersion,
+  restoreVersion,
   purgeExpiredVersions,
 } from "../index.js";
 import type { ObjectStore } from "../../ports.js";
@@ -327,6 +328,125 @@ describe.skipIf(!RUNTIME)("version redact (§13.6)", () => {
     const live = await app!.inject({ method: "GET", url: `/v1/memory-stores/${storeId}/memories/hist.md` });
     expect(live.statusCode).toBe(200);
     expect(JSON.parse(live.body).content).toBe("v2");
+  }, 60_000);
+});
+
+// ---------------------------------------------------------------------------
+// Restore (WP-C4.0)
+// ---------------------------------------------------------------------------
+
+describe.skipIf(!RUNTIME)("version restore (WP-C4.0)", () => {
+  let storeId: string;
+
+  beforeAll(async () => {
+    storeId = await createStore("Restore Store");
+  }, 60_000);
+
+  /** POST the restore op for a version id. */
+  async function restore(versionId: string) {
+    return app!.inject({
+      method: "POST",
+      url: `/v1/memory-stores/${storeId}/versions/${versionId}/restore`,
+      headers: { "idempotency-key": `restore-${versionId}` },
+    });
+  }
+
+  it("creates a NEW head version with the old version's content", async () => {
+    await createMemory(storeId, "doc.md", "v1", "restore-1");
+    const got = await app!.inject({ method: "GET", url: `/v1/memory-stores/${storeId}/memories/doc.md` });
+    const sha1 = JSON.parse(got.body).contentSha256;
+    const upd = await app!.inject({
+      method: "PATCH",
+      url: `/v1/memory-stores/${storeId}/memories/doc.md`,
+      headers: { "content-type": "application/json" },
+      payload: JSON.stringify({ content: "v2", contentSha256: sha1 }),
+    });
+    expect(upd.statusCode).toBe(200);
+
+    // Newest first: [v2, v1]. Restore v1 (the old version).
+    const versions = await listMemoryVersions(pool!, TENANT, storeId, { limit: 50, memoryPath: "doc.md" });
+    const oldV = versions.data[1];
+    expect(oldV.contentSha256).toBe(sha256Hex("v1"));
+
+    const res = await restore(oldV.id);
+    expect(res.statusCode, res.body).toBe(201);
+    const restored = JSON.parse(res.body);
+    expect(restored.id).not.toBe(oldV.id); // NEW version — history preserved
+    expect(restored.memoryPath).toBe("doc.md");
+    expect(restored.contentSha256).toBe(sha256Hex("v1"));
+    expect(restored.redacted).toBe(false);
+
+    // The restored version is the live head with identical content.
+    const live = await app!.inject({ method: "GET", url: `/v1/memory-stores/${storeId}/memories/doc.md` });
+    expect(live.statusCode).toBe(200);
+    expect(JSON.parse(live.body).content).toBe("v1");
+
+    // Nothing rewritten: [restored, v2, v1].
+    const after = await listMemoryVersions(pool!, TENANT, storeId, { limit: 50, memoryPath: "doc.md" });
+    expect(after.data.length).toBe(3);
+    expect(after.data[0].id).toBe(restored.id);
+  }, 60_000);
+
+  it("undeletes: restoring a pre-delete version makes the path live again", async () => {
+    await createMemory(storeId, "gone.md", "keep me", "restore-2");
+    const versions = await listMemoryVersions(pool!, TENANT, storeId, { limit: 50, memoryPath: "gone.md" });
+    const original = versions.data[0];
+    const del = await app!.inject({ method: "DELETE", url: `/v1/memory-stores/${storeId}/memories/gone.md` });
+    expect(del.statusCode).toBe(204);
+
+    const res = await restore(original.id);
+    expect(res.statusCode, res.body).toBe(201);
+    const live = await app!.inject({ method: "GET", url: `/v1/memory-stores/${storeId}/memories/gone.md` });
+    expect(live.statusCode).toBe(200);
+    expect(JSON.parse(live.body).content).toBe("keep me");
+
+    // Restoring the deletion tombstone itself is a 409 (no content to restore).
+    const afterDel = await listMemoryVersions(pool!, TENANT, storeId, { limit: 50, memoryPath: "gone.md" });
+    // Newest first: [restored, tombstone, original].
+    const tombstone = afterDel.data[1];
+    const rejected = await restore(tombstone.id);
+    expect(rejected.statusCode).toBe(409);
+    expect(JSON.parse(rejected.body).error.code).toBe("conflict");
+  }, 60_000);
+
+  it("rejects restoring a redacted version (content gone) with 409", async () => {
+    await createMemory(storeId, "red.md", "secret v1", "restore-3");
+    const got = await app!.inject({ method: "GET", url: `/v1/memory-stores/${storeId}/memories/red.md` });
+    const sha = JSON.parse(got.body).contentSha256;
+    const upd = await app!.inject({
+      method: "PATCH",
+      url: `/v1/memory-stores/${storeId}/memories/red.md`,
+      headers: { "content-type": "application/json" },
+      payload: JSON.stringify({ content: "clean v2", contentSha256: sha }),
+    });
+    expect(upd.statusCode).toBe(200);
+    const versions = await listMemoryVersions(pool!, TENANT, storeId, { limit: 50, memoryPath: "red.md" });
+    const oldV = versions.data[1];
+    const red = await app!.inject({
+      method: "POST",
+      url: `/v1/memory-stores/${storeId}/versions/${oldV.id}/redact`,
+      headers: { "idempotency-key": `redact-restore-${oldV.id}` },
+    });
+    expect(red.statusCode, red.body).toBe(200);
+
+    const res = await restore(oldV.id);
+    expect(res.statusCode).toBe(409);
+    expect(JSON.parse(res.body).error.code).toBe("conflict");
+  }, 60_000);
+
+  it("404 on an unknown version id", async () => {
+    const res = await restore("memver_does_not_exist");
+    expect(res.statusCode).toBe(404);
+    expect(JSON.parse(res.body).error.code).toBe("not_found");
+  }, 60_000);
+
+  it("does not leak across tenants: another tenant's ctx gets 404", async () => {
+    const versions = await listMemoryVersions(pool!, TENANT, storeId, { limit: 1 });
+    const versionId = versions.data[0].id;
+    const OTHER: TenantCtx = { tenantId: "tnt_memory_other", scopes: ["admin"] };
+    await expect(
+      restoreVersion(pool!, OTHER, objectStore, storeId, versionId),
+    ).rejects.toMatchObject({ statusCode: 404, code: "not_found" });
   }, 60_000);
 });
 

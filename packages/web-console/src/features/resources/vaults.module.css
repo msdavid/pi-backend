@@ -1,0 +1,63 @@
+.back {
+  margin: 0 0 var(--space-3);
+}
+
+.backLink {
+  color: var(--color-fg-muted);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+}
+
+.backLink:hover {
+  color: var(--color-fg);
+  text-decoration: underline;
+}
+
+.backLink:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-2);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-display);
+  line-height: var(--line-height-tight);
+}
+
+.actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.scopeNote {
+  font-size: var(--font-size-small);
+  color: var(--color-fg-muted);
+  white-space: nowrap;
+}
+
+/* DP-6: the one-line concept explanation under the page title. */
+.intro {
+  margin: 0 0 var(--space-4);
+  color: var(--color-fg-muted);
+  max-width: 48rem;
+}
+
+.dialogError {
+  margin-bottom: var(--space-3);
+}
+
+.dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}

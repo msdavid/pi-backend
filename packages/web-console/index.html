@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+      No inline scripts or styles, ever: the backend serve hook sends a CSP of
+      `default-src 'self'` on all /console* responses (console-spec §3.4).
+      Everything ships as bundled, hashed assets under /console/assets/.
+    -->
+    <!-- Default favicon (a bundled asset — CSP allows no external hosts);
+         src/lib/ambient-status.ts swaps it per viewed-session status (§8.3). -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Pi Console</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

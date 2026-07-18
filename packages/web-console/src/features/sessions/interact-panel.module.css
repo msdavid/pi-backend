@@ -1,0 +1,105 @@
+/* WP-C2.2 (W4): blocking-request panel + steering composer + interrupt. */
+
+.panel {
+  margin-bottom: var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.blocking {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.blockingLead {
+  margin: 0;
+  color: var(--color-fg-muted);
+}
+
+.request {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+}
+
+.requestFacts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  flex: 1;
+}
+
+.requestLabel {
+  font-size: var(--font-size-small);
+  color: var(--color-fg-muted);
+}
+
+.requestTool {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono);
+}
+
+.requestActions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.steerRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.composer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2);
+  flex: 1;
+}
+
+.composerInput {
+  flex: 1;
+  min-width: 16rem;
+}
+
+.interrupt {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  /* Baseline-align with the composer's button row (label + hint above). */
+  margin-top: var(--space-4);
+}
+
+.scopeNote {
+  margin: 0;
+  font-size: var(--font-size-small);
+  color: var(--color-fg-muted);
+}
+
+/* Phone width (WP-C4.3; console-spec §10.5): steering input takes the full
+   row; buttons wrap below (same treatment as the Conversation composer). */
+@media (max-width: 720px) {
+  .composerInput {
+    min-width: 100%;
+  }
+
+  .panel {
+    padding: var(--space-3);
+  }
+}

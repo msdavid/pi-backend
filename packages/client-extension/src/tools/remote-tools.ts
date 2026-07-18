@@ -127,8 +127,8 @@ export function createRemoteTools(opts: RemoteToolsOptions): ReturnType<typeof d
       );
       await c.sendEvent(session.id, { type: "user.message", content: params.task }, `remote_delegate_msg_${Date.now()}`);
       return {
-        content: [{ type: "text", text: `Delegated to session ${session.id}. Cost estimate: $${costEstimate.toFixed(4)} (estimate).` }],
-        details: { sessionId: session.id, status: session.status, costEstimate },
+        content: [{ type: "text", text: `Delegated to session ${session.id}. Cost estimate: $${costEstimate.toFixed(4)} (estimate). Console: ${c.consoleSessionUrl(session.id)}` }],
+        details: { sessionId: session.id, status: session.status, costEstimate, consoleUrl: c.consoleSessionUrl(session.id) },
       };
     },
   });
@@ -150,8 +150,8 @@ export function createRemoteTools(opts: RemoteToolsOptions): ReturnType<typeof d
         `remote_start_${Date.now()}`,
       );
       return {
-        content: [{ type: "text", text: `Started remote session ${session.id} (status: ${session.status}).` }],
-        details: { sessionId: session.id, status: session.status },
+        content: [{ type: "text", text: `Started remote session ${session.id} (status: ${session.status}). Console: ${c.consoleSessionUrl(session.id)}` }],
+        details: { sessionId: session.id, status: session.status, consoleUrl: c.consoleSessionUrl(session.id) },
       };
     },
   });

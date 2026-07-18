@@ -1,13 +1,13 @@
 /**
  * Webhook-emitting billing sink (WP-5.3, §29.6).
  *
- * Posts each {@link MeteringEvent} to an operator-configured billing webhook
- * endpoint over **HTTPS**, signed with the same `X-Webhook-Signature` scheme as
- * the webhook dispatcher (§23.4 — `t=<unix-ms>,v1=<hmac>` over `${t}.${rawBody}`).
- * Delivery is **at-least-once**: a non-2xx or network failure is retried with
- * exponential backoff up to `maxAttempts`; recipients MUST dedup via the
- * `X-Metering-Id` header (a server-generated `met_` ULID, stable across retries
- * for the same `recordMetering` call).
+ * Posts each aggregated {@link MeteringEvent} (§11.4: time-bucketed) to an
+ * operator-configured billing webhook endpoint over **HTTPS**, signed with the same
+ * `X-Webhook-Signature` scheme as the webhook dispatcher (§23.4 —
+ * `t=<unix-ms>,v1=<hmac>` over `${t}.${rawBody}`). Delivery is **at-least-once**: a
+ * non-2xx or network failure is retried with exponential backoff up to
+ * `maxAttempts`; recipients MUST dedup via the event's `idempotencyKey` (stable per
+ * `(tenant, bucket)`), also surfaced in the `X-Metering-Id` header.
  *
  * The billing endpoint is **operator-configured** (config/env, not tenant input),
  * but the *payload* is agent-influenced (model id, token counts) and the endpoint
@@ -31,7 +31,6 @@
 import type { Logger } from "pino";
 import type { BillingSink, MeteringEvent } from "./sink.js";
 import { signWebhookPayload } from "../webhook/index.js";
-import { newId } from "../tenant/ids.js";
 import {
   safeFetchPinned,
   type PinnedDnsResolver,
@@ -117,9 +116,9 @@ export class WebhookBillingSink implements BillingSink {
   }
 
   async recordMetering(event: MeteringEvent): Promise<void> {
-    // Stable id for this delivery attempt-set: recipients dedup on it across
-    // retries of the same `recordMetering` call (at-least-once, §29.6).
-    const meteringId = newId("met_");
+    // The event's `idempotencyKey` (stable per tenant+bucket) is the dedup id;
+    // surfaced in the header too so recipients can dedup without parsing the body.
+    const meteringId = event.idempotencyKey;
     const rawBody = JSON.stringify(event);
     const headers = { ...this.headers, "x-metering-id": meteringId };
 

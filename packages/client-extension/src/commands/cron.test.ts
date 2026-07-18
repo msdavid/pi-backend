@@ -75,6 +75,7 @@ function makeClient(over: Partial<ManagedApiClient> = {}): { client: ManagedApiC
       calls.push({ method: "listJobRuns", args: [id, q] });
       return Promise.resolve<Cursor<JobRun>>({ data: [makeRun()], nextCursor: null });
     },
+    consoleSessionUrl: (id: string) => `https://backend.test/console/sessions/${id}`,
     ...over,
   } as unknown as ManagedApiClient;
   return { client, calls };
@@ -164,6 +165,10 @@ describe("/remote:cron + /remote:jobs commands (§24.5, §17)", () => {
     expect(notifies.some((n) => n.msg.includes("Resumed"))).toBe(true);
     expect(notifies.some((n) => n.msg.includes("Archived"))).toBe(true);
     expect(notifies.some((n) => n.msg.includes("Triggered run run_x"))).toBe(true);
+    // The triggered session id prints with its console deep link (console-spec §1.4).
+    expect(
+      notifies.some((n) => n.msg.includes("https://backend.test/console/sessions/sess_x")),
+    ).toBe(true);
   });
 
   it("pause without jobId → usage error", async () => {

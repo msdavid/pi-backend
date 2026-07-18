@@ -256,14 +256,23 @@ function matches(w: WallClock, c: ParsedCron): boolean {
  *  - 1 in the normal case,
  *  - 2 during a fall-back overlap (the wall-clock occurs twice).
  *
- * Found by scanning a ±2h window of UTC minutes around the wall-clock naïvely
- * interpreted as UTC, and keeping those whose `wallOf` equals the target.
+ * Found by scanning a ±2h window of UTC minutes and keeping those whose
+ * `wallOf` equals the target. The window is centered on the wall-clock shifted
+ * by the zone's probed UTC offset at that instant — NOT on the wall-clock
+ * naïvely interpreted as UTC: a naïve center puts every zone with
+ * |offset| > 2h permanently outside the window, so `nextOccurrence` returned
+ * `null` and jobs scheduled in e.g. America/New_York or Asia/Taipei never
+ * fired. ±2h around the probed offset still covers DST transitions (offset
+ * shifts of ≤ 2h) on either side of the probe.
  */
 export function instantsForWallClock(w: WallClock, tz: string): Date[] {
   const base = Date.UTC(w.y, w.m - 1, w.d, w.h, w.mi);
+  const probe = wallOf(new Date(base), tz);
+  const probeMs = Date.UTC(probe.y, probe.m - 1, probe.d, probe.h, probe.mi);
+  const center = base - (probeMs - base);
   const out: Date[] = [];
   for (let off = -120; off <= 120; off++) {
-    const t = base + off * 60_000;
+    const t = center + off * 60_000;
     const w2 = wallOf(new Date(t), tz);
     if (
       w2.y === w.y &&

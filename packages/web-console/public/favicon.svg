@@ -1,0 +1,4 @@
+<!-- Default (no ambient status) favicon: a neutral accent ring. The filled
+     per-status variants are generated as data: URIs in
+     src/lib/ambient-status.ts (WP-C2.5, console-spec §8.3 / DP-11). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" fill="none" stroke="#4459d4" stroke-width="2.5"/></svg>

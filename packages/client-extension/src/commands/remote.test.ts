@@ -36,6 +36,9 @@ function makeSession(over: Partial<Session> = {}): Session {
   };
 }
 
+/** Console deep-link stub (console-spec §1.4) for mock clients. */
+const consoleSessionUrl = (id: string) => `https://backend.test/console/sessions/${id}`;
+
 function makeUi() {
   const notifies: { msg: string; type?: string }[] = [];
   const widgets: { key: string; lines: string[] }[] = [];
@@ -90,7 +93,7 @@ describe("/remote:* commands (§24, §24.7)", () => {
       .fn()
       .mockResolvedValue(makeSession({ id: "sess_del" }));
     const sendEvent = vi.fn().mockResolvedValue(undefined);
-    const client = { createSession, sendEvent } as unknown as ManagedApiClient;
+    const client = { createSession, sendEvent, consoleSessionUrl } as unknown as ManagedApiClient;
     const ctx = makeDeps(client);
 
     await runDelegate(ctx.deps, "fix the login bug");
@@ -111,17 +114,36 @@ describe("/remote:* commands (§24, §24.7)", () => {
     expect((ours[0]!.data as { kind: string }).kind).toBe("start");
     expect((ours[0]!.data as { task: string }).task).toBe("fix the login bug");
     expect(ctx.startedPanels).toEqual([{ sessionId: "sess_del", mode: "delegate" }]);
+    // W3 step 1: the delegate reply prints the console deep link (console-spec §1.4).
+    expect(
+      ctx.notifies.some((n) => n.msg.includes("https://backend.test/console/sessions/sess_del")),
+    ).toBe(true);
   });
 
   it("/remote:start appends a start marker and opens an interactive panel", async () => {
     const createSession = vi.fn().mockResolvedValue(makeSession({ id: "sess_start" }));
-    const client = { createSession } as unknown as ManagedApiClient;
+    const client = { createSession, consoleSessionUrl } as unknown as ManagedApiClient;
     const ctx = makeDeps(client);
 
     await runStart(ctx.deps, "agent_1 env_1");
 
     expect(ctx.startedPanels).toEqual([{ sessionId: "sess_start", mode: "interactive" }]);
     expect(ctx.recorder.hasStarted("sess_start")).toBe(true);
+    expect(
+      ctx.notifies.some((n) => n.msg.includes("https://backend.test/console/sessions/sess_start")),
+    ).toBe(true);
+  });
+
+  it("/remote:resume opens an interactive panel with a console link", async () => {
+    const getSession = vi.fn().mockResolvedValue(makeSession({ id: "sess_res", status: "idle" }));
+    const client = { getSession, consoleSessionUrl } as unknown as ManagedApiClient;
+    const ctx = makeDeps(client);
+
+    await runResume(ctx.deps, "sess_res");
+    expect(ctx.startedPanels).toEqual([{ sessionId: "sess_res", mode: "interactive" }]);
+    expect(
+      ctx.notifies.some((n) => n.msg.includes("https://backend.test/console/sessions/sess_res")),
+    ).toBe(true);
   });
 
   it("/remote:resume refuses a terminated session", async () => {
@@ -144,7 +166,7 @@ describe("/remote:* commands (§24, §24.7)", () => {
       ],
       nextCursor: null,
     } as Cursor<Session>);
-    const client = { listSessions } as unknown as ManagedApiClient;
+    const client = { listSessions, consoleSessionUrl } as unknown as ManagedApiClient;
     const ctx = makeDeps(client);
 
     await runSessions(ctx.deps);
@@ -154,13 +176,16 @@ describe("/remote:* commands (§24, §24.7)", () => {
     const w = ctx.widgets.find((w) => w.key === "pi-managed:sessions")!;
     expect(w.lines.join("\n")).toContain("sess_a");
     expect(w.lines.join("\n")).toContain("sess_b");
+    // Each row carries its console deep link (console-spec §1.4).
+    expect(w.lines.join("\n")).toContain("https://backend.test/console/sessions/sess_a");
+    expect(w.lines.join("\n")).toContain("https://backend.test/console/sessions/sess_b");
   });
 
   it("/remote:attach records a start marker if none exists, then opens interactive", async () => {
     const getSession = vi
       .fn()
       .mockResolvedValue(makeSession({ id: "sess_att", status: "running" }));
-    const client = { getSession } as unknown as ManagedApiClient;
+    const client = { getSession, consoleSessionUrl } as unknown as ManagedApiClient;
     const ctx = makeDeps(client);
 
     await runAttach(ctx.deps, "sess_att");
@@ -172,11 +197,15 @@ describe("/remote:* commands (§24, §24.7)", () => {
     const forkSession = vi
       .fn()
       .mockResolvedValue(makeSession({ id: "sess_fork", forkedFromSessionId: "sess_orig" }));
-    const client = { forkSession } as unknown as ManagedApiClient;
+    const client = { forkSession, consoleSessionUrl } as unknown as ManagedApiClient;
     const ctx = makeDeps(client);
 
     await runFork(ctx.deps, "sess_orig");
     expect(forkSession).toHaveBeenCalledWith("sess_orig");
+    // The new session id prints with its console deep link (console-spec §1.4).
+    expect(
+      ctx.notifies.some((n) => n.msg.includes("https://backend.test/console/sessions/sess_fork")),
+    ).toBe(true);
   });
 
   it("commands surface a clear error when the backend is not configured", async () => {

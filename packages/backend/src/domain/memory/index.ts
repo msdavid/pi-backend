@@ -5,7 +5,8 @@
  * - {@link slug.ts}        — filesystem-safe slug for mount paths (§13.3).
  * - {@link store.ts}       — store CRUD + limits.
  * - {@link memory.ts}      — memory CRUD + `contentSha256` optimistic concurrency (§13.4).
- * - {@link version.ts}     — version audit trail, redact (§13.6), 30-day retention (§13.5).
+ * - {@link version.ts}     — version audit trail, redact (§13.6), restore (WP-C4.0),
+ *                            30-day retention (§13.5).
  * - {@link mount.ts}       — object store → volume mount pipeline + write-back (§13.1).
  */
 
@@ -44,6 +45,7 @@ export {
   listMemoryVersions,
   getMemoryVersion,
   redactVersion,
+  restoreVersion,
   purgeExpiredVersions,
   DEFAULT_KEEP_RECENT,
   type ListVersionsOptions,

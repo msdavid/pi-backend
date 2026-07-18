@@ -16,6 +16,10 @@
  * The run* functions are decoupled from Pi types (deps-injected) so they can be
  * unit-tested against a mock client + in-memory recorder. `registerRemoteCommands`
  * wires them into Pi and is RPC-invokable.
+ *
+ * Wherever a command prints a session id it also prints the session's console
+ * deep link — `<backendUrl>/console/sessions/<id>` (console-spec §1.4) — via
+ * `ManagedApiClient.consoleSessionUrl()`; no extra configuration.
  */
 
 import type {
@@ -122,7 +126,10 @@ export async function runStart(deps: RemoteCommandDeps, args: string): Promise<v
     throw e;
   }
   deps.recorder.appendStart(session.id, "", "interactive");
-  deps.ui.notify(`Started remote session ${session.id}.`, "info");
+  deps.ui.notify(
+    `Started remote session ${session.id}. Console: ${client.consoleSessionUrl(session.id)}`,
+    "info",
+  );
   deps.startPanel(session.id, "interactive");
 }
 
@@ -148,7 +155,10 @@ export async function runResume(deps: RemoteCommandDeps, args: string): Promise<
     return;
   }
   deps.recorder.appendStart(session.id, "", "interactive");
-  deps.ui.notify(`Resumed remote session ${session.id} (${session.status}).`, "info");
+  deps.ui.notify(
+    `Resumed remote session ${session.id} (${session.status}). Console: ${client.consoleSessionUrl(session.id)}`,
+    "info",
+  );
   deps.startPanel(session.id, "interactive");
 }
 
@@ -171,7 +181,9 @@ export async function runSessions(deps: RemoteCommandDeps): Promise<void> {
   const lines = ["Remote sessions:"];
   for (const s of page.data) {
     const title = s.title ?? "(untitled)";
-    lines.push(`  ${s.id} · ${s.status} · ${title} · last ${s.lastActivityAt}`);
+    lines.push(
+      `  ${s.id} · ${s.status} · ${title} · last ${s.lastActivityAt} · ${client.consoleSessionUrl(s.id)}`,
+    );
   }
   deps.ui.setWidget("pi-managed:sessions", lines.slice(0, 50));
   deps.ui.setStatus("pi-managed", `${page.data.length} session(s)`);
@@ -215,7 +227,7 @@ export async function runDelegate(deps: RemoteCommandDeps, args: string): Promis
   // appended by the connection manager when the session reaches idle/terminated.
   deps.recorder.appendStart(session.id, task, "delegate");
   deps.ui.notify(
-    `Delegated to ${session.id}. The session runs to completion even if this Pi closes.`,
+    `Delegated to ${session.id}. The session runs to completion even if this Pi closes. Console: ${client.consoleSessionUrl(session.id)}`,
     "info",
   );
   deps.startPanel(session.id, "delegate");
@@ -248,7 +260,7 @@ export async function runAttach(deps: RemoteCommandDeps, args: string): Promise<
     deps.recorder.appendStart(sessionId, "", "interactive");
   }
   deps.ui.notify(
-    `Attached to ${sessionId} (${session.status}). Type to steer; /remote:detach to release.`,
+    `Attached to ${sessionId} (${session.status}). Type to steer; /remote:detach to release. Console: ${client.consoleSessionUrl(sessionId)}`,
     "info",
   );
   deps.startPanel(sessionId, "interactive");
@@ -271,7 +283,10 @@ export async function runFork(deps: RemoteCommandDeps, args: string): Promise<vo
     if (catchClientError(deps.ui, e, "Forking session")) return;
     throw e;
   }
-  deps.ui.notify(`Forked ${sessionId} → ${forked.id}.`, "info");
+  deps.ui.notify(
+    `Forked ${sessionId} → ${forked.id}. Console: ${client.consoleSessionUrl(forked.id)}`,
+    "info",
+  );
 }
 
 // --- /remote:detach (helper) ------------------------------------------------

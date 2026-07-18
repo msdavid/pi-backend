@@ -1,0 +1,115 @@
+/* Shared styles for the two §9.5 read screens (files + skills, WP-C3.6) —
+ * same shell as memory-stores.module.css, plus the inline detail panel. */
+
+.back {
+  margin: 0 0 var(--space-3);
+}
+
+.backLink {
+  color: var(--color-fg-muted);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+}
+
+.backLink:hover {
+  color: var(--color-fg);
+  text-decoration: underline;
+}
+
+.backLink:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.headActions {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-display);
+  line-height: var(--line-height-tight);
+}
+
+.microcopy {
+  margin: 0;
+  max-width: 60ch;
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-small);
+}
+
+.more {
+  margin-top: var(--space-3);
+}
+
+/* Inline detail panel (no detail route — §9.5 list-first surface). */
+.panel {
+  margin-top: var(--space-5);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.panelTitle {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-title);
+}
+
+.subheading {
+  margin: var(--space-4) 0 var(--space-2);
+  font-size: var(--font-size-section);
+  font-weight: var(--font-weight-medium);
+}
+
+.meta {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-1) var(--space-4);
+  margin: 0 0 var(--space-3);
+}
+
+.metaRow {
+  display: contents;
+}
+
+.metaLabel {
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-small);
+}
+
+.metaValue {
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.download {
+  color: var(--color-accent);
+  border-radius: var(--radius-sm);
+}
+
+.download:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
+}
+
+.scopeNote {
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-small);
+}

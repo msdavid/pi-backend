@@ -42,7 +42,7 @@
                       #   custom-tools/)
   /client-extension   # @pi-managed/client (§24)
   /worker             # default self-hosted worker (§10.4)
-  /web-console        # @pi-managed/web-console — read-only web console (§26.6)
+  /web-console        # @pi-managed/web-console — web console SPA (§26.6)
   /testkit            # shared test fixtures: pg testcontainer, fake sandbox provider,
                       #   SSE test client, tenant/api-key factories
 /docs
@@ -135,8 +135,10 @@ applied to every `*.test.ts`) is an error on:
    mocking any `…/foo.js`);
 3. injecting a fake transport (`fetchImpl`) into a **seam/contract test** — currently
    `client-extension/src/api-client.test.ts` and any `*contract*.test.ts` /
-   `*conformance*.test.ts` under `client-extension/src/**`, whose entire purpose is that both
-   sides of the seam are real.
+   `*conformance*.test.ts` under `client-extension/src/**`, plus the web-console contract
+   tests (`web-console/src/api/__tests__/*contract*.test.ts` and any `*conformance*.test.ts`
+   under `web-console/src/**`) — suites whose entire purpose is that both sides of the seam
+   are real.
 
 The rule is deliberately narrow: it targets the class of bug above, not mocking in general.
 Mocking a *collaborator* module, injecting a scripted collaborator, and stubbing a clock are

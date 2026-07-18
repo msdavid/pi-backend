@@ -11,6 +11,7 @@ import {
   EnvironmentCreate,
   Session,
   SessionCreate,
+  SessionListParams,
   SessionUsageResponse,
   UserMessageEvent,
   UserToolConfirmationEvent,
@@ -27,6 +28,7 @@ import {
   MemoryStore,
   MemoryStoreCreate,
   MemoryVersion,
+  MemoryVersionRestoreRequest,
   File,
   Skill,
   Outcome,
@@ -40,10 +42,23 @@ import {
   WebhookTestResponse,
   WebhookPayload,
   TenantInfo,
+  TenantUsageParams,
+  TenantUsageResponse,
   ApiKey,
   ApiKeyCreateResponse,
+  ConsoleConfig,
+  ConsoleSessionCreate,
+  ConsoleSessionCreateResponse,
+  ConsoleSessionInfo,
   ErrorEnvelope,
   Cursor,
+  LedgerEntry,
+  TenantBillingState,
+  VerifyEmailRequest,
+  VerifyEmailResponse,
+  VerificationResendResponse,
+  MeteringEvent,
+  TenantBalanceEventData,
   agentId,
   envId,
 } from "../index.js";
@@ -156,6 +171,7 @@ describe("golden payloads (positive)", () => {
         outputTokens: 0,
         cacheCreationInputTokens: 0,
         cacheReadInputTokens: 0,
+        usdCost: 0,
       },
       vaultIds: ["vault_01JAZZZZZZZZZZZZZZZZZZZZZZ"],
       resources: [],
@@ -166,6 +182,18 @@ describe("golden payloads (positive)", () => {
       forkedFromSessionId: null,
     };
     expect(Session.parse(resource)).toEqual(resource);
+
+    // `usage.usdCost` is an additive field — a payload without it still parses
+    // (backward compatibility for pre-rollup fixtures/servers).
+    const { usdCost: _usdCost, ...legacyUsage } = resource.usage;
+    expect(Session.safeParse({ ...resource, usage: legacyUsage }).success).toBe(true);
+  });
+
+  it("Session list params (status + stopReason filters combinable)", () => {
+    const params = { status: "idle", stopReason: "requires_action", limit: 50 };
+    expect(SessionListParams.parse(params)).toEqual(params);
+    // stopReason is the StopReason enum — anything else is rejected.
+    expect(SessionListParams.safeParse({ stopReason: "bogus" }).success).toBe(false);
   });
 
   it("Session usage", () => {
@@ -324,6 +352,9 @@ describe("golden payloads (positive)", () => {
         expiresAt: null,
       }),
     ).toMatchObject({ redacted: false });
+    // Restore request (WP-C4.0): body may be omitted entirely or an empty object.
+    expect(MemoryVersionRestoreRequest.parse(undefined)).toBeUndefined();
+    expect(MemoryVersionRestoreRequest.parse({})).toEqual({});
   });
 
   it("File + Skill", () => {
@@ -461,6 +492,15 @@ describe("golden payloads (positive)", () => {
           fileStorage: 5368709120,
           tokenSpendUsd: 12.34,
         },
+        quotaLimits: {
+          concurrentSessions: 10,
+          concurrentSandboxes: 10,
+          maxJobs: 100,
+          maxVaultCredentials: 100,
+          maxMemoryStores: 25,
+          maxFileStorageBytes: 10737418240,
+          monthlyTokenSpendUsd: 200,
+        },
       }),
     ).toMatchObject({ quotaPlan: "pro" });
     expect(
@@ -479,6 +519,109 @@ describe("golden payloads (positive)", () => {
         createdAt: "2026-07-13T12:00:00Z",
       }),
     ).toMatchObject({ name: "ci-key" });
+  });
+
+  it("Tenant usage over time (day/month buckets, console spec §11.5)", () => {
+    const params = {
+      granularity: "day",
+      from: "2026-06-17T00:00:00Z",
+      to: "2026-07-17T00:00:00Z",
+      groupBy: "agent",
+    };
+    expect(TenantUsageParams.parse(params)).toEqual(params);
+    // All params optional (server defaults apply); enums are closed.
+    expect(TenantUsageParams.parse({})).toEqual({});
+    expect(TenantUsageParams.safeParse({ granularity: "week" }).success).toBe(false);
+    expect(TenantUsageParams.safeParse({ groupBy: "model" }).success).toBe(false);
+
+    // Response example from docs/api-reference.md §"GET /v1/tenant/usage".
+    const response = {
+      granularity: "day",
+      from: "2026-06-17T00:00:00Z",
+      to: "2026-07-17T00:00:00Z",
+      groupBy: "agent",
+      data: [
+        {
+          bucketStart: "2026-07-01T00:00:00Z",
+          agentId: "agent_01JAZZZZZZZZZZZZZZZZZZZZZZ",
+          inputTokens: 12345,
+          outputTokens: 6789,
+          cacheCreationInputTokens: 0,
+          cacheReadInputTokens: 0,
+          usdCost: 0.12,
+        },
+      ],
+    };
+    expect(TenantUsageResponse.parse(response)).toEqual(response);
+
+    // Ungrouped rows omit both group keys; `groupBy=user` rows may carry a
+    // null userId (session without metadata.userId).
+    expect(
+      TenantUsageResponse.parse({
+        granularity: "month",
+        from: "2026-01-01T00:00:00Z",
+        to: "2026-07-01T00:00:00Z",
+        data: [
+          {
+            bucketStart: "2026-06-01T00:00:00Z",
+            inputTokens: 0,
+            outputTokens: 0,
+            cacheCreationInputTokens: 0,
+            cacheReadInputTokens: 0,
+            usdCost: 0,
+          },
+        ],
+      }).data[0].userId,
+    ).toBeUndefined();
+    expect(
+      TenantUsageResponse.parse({
+        granularity: "day",
+        from: "2026-07-01T00:00:00Z",
+        to: "2026-07-02T00:00:00Z",
+        groupBy: "user",
+        data: [
+          {
+            bucketStart: "2026-07-01T00:00:00Z",
+            userId: null,
+            inputTokens: 1,
+            outputTokens: 2,
+            cacheCreationInputTokens: 0,
+            cacheReadInputTokens: 0,
+            usdCost: 0.001,
+          },
+        ],
+      }).data[0].userId,
+    ).toBeNull();
+  });
+
+  it("Console config + session (console spec §3.2, §4.2, §4.4)", () => {
+    // GET /console/config — exactly two fields; unknown modes rejected.
+    expect(ConsoleConfig.parse({ mode: "saas", onboardingEnabled: true })).toEqual({
+      mode: "saas",
+      onboardingEnabled: true,
+    });
+    expect(
+      ConsoleConfig.safeParse({ mode: "enterprise", onboardingEnabled: false }).success,
+    ).toBe(false);
+
+    expect(ConsoleSessionCreate.parse({ apiKey: "pmb_live_secret" })).toEqual({
+      apiKey: "pmb_live_secret",
+    });
+    const tenant = { id: "tnt_01JAZZZZZZZZZZZZZZZZZZZZZZ", name: "Acme Corp" };
+    expect(
+      ConsoleSessionCreateResponse.parse({ scopes: ["read", "write"], tenant }),
+    ).toMatchObject({ scopes: ["read", "write"] });
+    // GET /console/session adds expiresAt (required there, absent on POST).
+    expect(
+      ConsoleSessionInfo.parse({
+        scopes: ["read"],
+        tenant,
+        expiresAt: "2026-07-18T12:00:00Z",
+      }),
+    ).toMatchObject({ expiresAt: "2026-07-18T12:00:00Z" });
+    expect(
+      ConsoleSessionInfo.safeParse({ scopes: ["read"], tenant }).success,
+    ).toBe(false);
   });
 
   it("Cursor wrapper", () => {
@@ -518,6 +661,100 @@ describe("golden payloads (positive)", () => {
   });
 });
 
+describe("billing golden payloads (console spec §11, WP-C5.1/C5.2)", () => {
+  it("TenantBillingState + LedgerEntry (GET /v1/tenant/billing[/ledger])", () => {
+    const state = {
+      lifecycle: "active",
+      balanceMicros: 3_000_000,
+      balanceUsd: 3.0,
+      verified: true,
+      verificationRequired: false,
+    };
+    expect(TenantBillingState.parse(state)).toEqual(state);
+    // lifecycle is a closed enum — no `past_due` (prepaid cannot be past due).
+    expect(TenantBillingState.safeParse({ ...state, lifecycle: "past_due" }).success).toBe(false);
+
+    // A signed debit entry (§11.3): amount negative, running balance after it.
+    const entry = {
+      id: "led_01JAZZZZZZZZZZZZZZZZZZZZZZ",
+      kind: "debit",
+      amountMicros: -1_500_000,
+      amountUsd: -1.5,
+      balanceAfterMicros: 1_500_000,
+      balanceAfterUsd: 1.5,
+      source: "usage",
+      createdAt: "2026-07-13T12:00:00Z",
+    };
+    expect(LedgerEntry.parse(entry)).toEqual(entry);
+    // `source` is nullable (a bare grant may carry none).
+    expect(LedgerEntry.parse({ ...entry, kind: "grant", source: null }).source).toBeNull();
+    // id must be a `led_`-prefixed ledger id; kind is a closed enum.
+    expect(LedgerEntry.safeParse({ ...entry, id: "evt_01JAZ" }).success).toBe(false);
+    expect(LedgerEntry.safeParse({ ...entry, kind: "refund" }).success).toBe(false);
+    // Micros are integers — a fractional micro amount is rejected.
+    expect(LedgerEntry.safeParse({ ...entry, amountMicros: -1.5 }).success).toBe(false);
+  });
+
+  it("Email verification req/resp + resend (§11.1)", () => {
+    expect(VerifyEmailRequest.parse({ token: "vtok_abc" })).toEqual({ token: "vtok_abc" });
+    // token must be non-empty.
+    expect(VerifyEmailRequest.safeParse({ token: "" }).success).toBe(false);
+    // Response is idempotent-true only — `verified:false` is not a valid success shape.
+    expect(VerifyEmailResponse.parse({ verified: true })).toEqual({ verified: true });
+    expect(VerifyEmailResponse.safeParse({ verified: false }).success).toBe(false);
+    // Resend is a benign boolean ack (never reveals which no-op it was).
+    expect(VerificationResendResponse.parse({ sent: false })).toEqual({ sent: false });
+    expect(VerificationResendResponse.safeParse({ sent: "no" }).success).toBe(false);
+  });
+
+  it("MeteringEvent (§11.4 export — aggregated, time-bucketed)", () => {
+    const event = {
+      idempotencyKey: "meter:tnt_01JAZZZZZZZZZZZZZZZZZZZZZZ:1752408000000",
+      tenantId: "tnt_01JAZZZZZZZZZZZZZZZZZZZZZZ",
+      bucketStart: "2026-07-13T12:00:00Z",
+      bucketEnd: "2026-07-13T12:01:00Z",
+      requestCount: 12,
+      inputTokens: 12345,
+      outputTokens: 6789,
+      cacheCreationInputTokens: 0,
+      cacheReadInputTokens: 0,
+      totalTokens: 19134,
+      usdCost: 0.42,
+    };
+    expect(MeteringEvent.parse(event)).toEqual(event);
+    // dedup key must be present; counts are non-negative integers.
+    expect(MeteringEvent.safeParse({ ...event, idempotencyKey: "" }).success).toBe(false);
+    expect(MeteringEvent.safeParse({ ...event, requestCount: -1 }).success).toBe(false);
+    expect(MeteringEvent.safeParse({ ...event, inputTokens: 1.5 }).success).toBe(false);
+  });
+
+  it("TenantBalanceEventData incl. the stable crossing id (§11.6, F2)", () => {
+    const data = {
+      entryId: "led_01JAZZZZZZZZZZZZZZZZZZZZZZ",
+      tenantId: "tnt_01JAZZZZZZZZZZZZZZZZZZZZZZ",
+      balanceMicros: 1_500_000,
+      balanceUsd: 1.5,
+      thresholdMicros: 2_000_000,
+      thresholdUsd: 2.0,
+      lifecycle: "active",
+    };
+    expect(TenantBalanceEventData.parse(data)).toEqual(data);
+    // round-trip through JSON (delivered verbatim in the webhook payload).
+    expect(TenantBalanceEventData.parse(JSON.parse(JSON.stringify(data)))).toEqual(data);
+    // `entryId` is required (the auto-charge idempotency key) and must be a `led_` id.
+    const { entryId: _drop, ...noEntry } = data;
+    expect(TenantBalanceEventData.safeParse(noEntry).success).toBe(false);
+    expect(TenantBalanceEventData.safeParse({ ...data, entryId: "evt_01JAZ" }).success).toBe(false);
+    // threshold is non-negative; lifecycle is the closed billing enum.
+    expect(TenantBalanceEventData.safeParse({ ...data, thresholdMicros: -1 }).success).toBe(false);
+    expect(TenantBalanceEventData.safeParse({ ...data, lifecycle: "past_due" }).success).toBe(false);
+  });
+
+  it("declares entryId on the balance-event shape (crossing identity)", () => {
+    expect("entryId" in TenantBalanceEventData.shape).toBe(true);
+  });
+});
+
 describe("security invariants (negative)", () => {
   it("Credential response rejects a payload containing `token`", () => {
     const leak = {
@@ -547,6 +784,11 @@ describe("security invariants (negative)", () => {
 
   it("tenantId is not accepted on AgentCreate", () => {
     expect("tenantId" in AgentCreate.shape).toBe(false);
+  });
+
+  it("console-session responses never declare apiKey (write-only)", () => {
+    expect("apiKey" in ConsoleSessionCreateResponse.shape).toBe(false);
+    expect("apiKey" in ConsoleSessionInfo.shape).toBe(false);
   });
 
   it("mcp_oauth refresh.tokenUrl rejects non-https / non-URL (SEC-3)", () => {

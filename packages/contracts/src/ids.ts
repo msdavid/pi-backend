@@ -48,6 +48,8 @@ export const whId = prefixedId("wh_");
 export const whsecSecret = prefixedId("whsec_");
 export const apikeyId = prefixedId("apikey_");
 export const tenantId = prefixedId("tnt_");
+/** Ledger entry id (console spec §11.3 — WP-C5.1). */
+export const ledgerEntryId = prefixedId("led_");
 
 // IDs that appear in the wire contract though not in the brief's required list:
 export const vcredId = prefixedId("vcred_");

@@ -3,14 +3,35 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Pi Managed Backend — read-only web console (v1). A dependency-free static SPA for browsing sessions, tracing events, and viewing token usage.",
+  "description": "Pi Managed Backend — web console. Vite + React SPA served by the backend at /console (tmp/console-spec.md).",
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "node scripts/build.mjs",
+    "dev": "vite",
+    "build": "vite build && node scripts/check-budget.mjs",
+    "preview": "vite preview",
     "test": "vitest run",
-    "serve": "node scripts/serve.mjs"
+    "test:gate": "vitest run test/phase1-gate/ test/phase2-gate/ test/phase3-gate/ test/phase4-gate/ test/phase5-gate/",
+    "typecheck": "tsc --noEmit"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@pi-managed/backend": "workspace:*",
+    "@pi-managed/contracts": "workspace:*",
+    "@tanstack/react-query": "^5.101.2",
+    "@tanstack/react-router": "^1.170.18",
+    "@testcontainers/postgresql": "^10.18.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "axe-core": "^4.12.1",
+    "jsdom": "^29.1.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "vite": "^8.1.5",
+    "vitest-axe": "^0.1.0"
+  }
 }

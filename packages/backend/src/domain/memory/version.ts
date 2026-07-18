@@ -10,6 +10,11 @@
  * that is the **current head of a live memory** cannot be redacted — `409` —
  * write a new version (or delete the memory) first, then redact the old one.
  *
+ * Restore (WP-C4.0, C§9.5): {@link restoreVersion} copies an old version's
+ * content server-side into a NEW head version for the same path — history is
+ * preserved, nothing rewritten. A redacted/tombstone source (content gone) is a
+ * `409 conflict`.
+ *
  * Retention (§13.5): 30-day `expires_at`; the most recent versions are always
  * kept regardless of age. {@link purgeExpiredVersions} is the sweep (callers
  * schedule it; the backend does not auto-schedule it here).
@@ -25,6 +30,7 @@ import { ApiError } from "../errors.js";
 import type { ObjectStore } from "../ports.js";
 import type { MemoryVersion } from "@pi-managed/contracts";
 import { fetchStoreRow } from "./store.js";
+import { readObjectText, writeVersion } from "./memory.js";
 
 /** Default "recent-always-kept" window per store (§13.5). */
 export const DEFAULT_KEEP_RECENT = 10;
@@ -215,6 +221,65 @@ export async function redactVersion(
     [tenantCtx.tenantId, storeId, versionId],
   );
   return toVersion(updated[0] ?? { ...v, redacted: true, contentObjectKey: null });
+}
+
+/**
+ * Restore a version (WP-C4.0, C§9.5): copy the source version's content
+ * server-side into a NEW version for the same `memoryPath`, which becomes the
+ * live head — history is preserved, nothing rewritten. Works whether the memory
+ * is currently live (revert) or deleted (undelete). Errors:
+ *
+ *  - `404 not_found` — store absent/archived, or version absent/cross-tenant.
+ *  - `409 conflict` — the source version's content is gone (redacted, or a
+ *    deletion tombstone): nothing to restore. A state conflict, not a
+ *    validation failure (api-reference.md, status policy).
+ */
+export async function restoreVersion(
+  pool: Pool,
+  tenantCtx: TenantCtx,
+  objectStore: ObjectStore,
+  storeId: string,
+  versionId: string,
+): Promise<MemoryVersion> {
+  const store = await requireStore(pool, tenantCtx, storeId);
+  const { rows } = await tenantScopedQuery<VersionDbRow>(
+    pool,
+    tenantCtx,
+    `SELECT ${VERSION_COLS} FROM memory_versions
+      WHERE tenant_id = $1 AND store_id = $2 AND id = $3`,
+    [tenantCtx.tenantId, storeId, versionId],
+  );
+  const v = rows[0];
+  if (!v) {
+    throw new ApiError(404, "not_found", `memory version not found: ${versionId}`);
+  }
+  if (v.contentObjectKey === null || v.memoryPath === null) {
+    throw new ApiError(
+      409,
+      "conflict",
+      v.redacted
+        ? `cannot restore a redacted version: ${versionId} (content is gone)`
+        : `cannot restore a deletion tombstone: ${versionId} (it has no content)`,
+    );
+  }
+  const content = await readObjectText(objectStore, v.contentObjectKey);
+  if (content === null) {
+    throw new ApiError(
+      409,
+      "conflict",
+      `cannot restore version ${versionId}: its content object is gone`,
+    );
+  }
+  const restored = await writeVersion(
+    pool,
+    tenantCtx,
+    objectStore,
+    storeId,
+    store.objectKeyPrefix,
+    v.memoryPath,
+    content,
+  );
+  return toVersion(restored);
 }
 
 /**

@@ -30,6 +30,12 @@ export interface WebhookEventSource {
     type: WebhookEventType,
     id?: string,
     createdAt?: string,
+    /**
+     * Optional self-contained `data` for event types whose defining fact is not
+     * recoverable by a later GET (tenant-balance thresholds, §11.6). Delivered
+     * verbatim in the thin payload. Omit for the thin default.
+     */
+    data?: Record<string, unknown>,
   ): Promise<void>;
 }
 
@@ -38,11 +44,12 @@ export function createWebhookEventSource(
   dispatcher: WebhookDispatcher,
 ): WebhookEventSource {
   return {
-    async emit(tenantId, type, id, createdAt) {
+    async emit(tenantId, type, id, createdAt, data) {
       await dispatcher.enqueueForTenant(tenantId, {
         type,
         id: id ?? newId("evt_"),
         createdAt: createdAt ?? new Date().toISOString(),
+        ...(data ? { data } : {}),
       });
     },
   };

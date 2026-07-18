@@ -51,8 +51,10 @@ import {
 import { createUsageRecorder } from "./domain/usage/usage-recorder.js";
 import {
   createBillingSink,
-  createMeteringHook,
+  createMeteringAggregator,
+  NOOP_BILLING_SINK,
   type BillingSinkOverrides,
+  type MeteringAggregator,
 } from "./domain/billing/index.js";
 import { createVaultSecretStore } from "./domain/vault/secret-store.js";
 import { createProviderKeyResolver } from "./domain/vault/provider-keys.js";
@@ -565,6 +567,12 @@ export interface ManagedApp {
    * `SESSION_WORKER_MODE=pool`. Exposes the worker PIDs / per-worker session counts.
    */
   sessionWorkers?: SessionWorkerPool;
+  /**
+   * The metering aggregator (§11.4/§11.6, WP-C5.2) — present only when billing is
+   * enabled or an export sink is configured. Exposed so a test can deterministically
+   * flush a closed bucket (`flushAll`) instead of waiting on the timer.
+   */
+  meteringAggregator?: MeteringAggregator;
   /** Graceful shutdown: stop runtimes, close the pool, close the app. */
   close: () => Promise<void>;
 }
@@ -648,12 +656,15 @@ export async function createManagedApp(
   // Append-only event projection (R4.1): the write side is injected into every runtime;
   // the read side (history/replay) reads from it via the Events API.
   const events = new SessionEventsStore(pool);
-  // W8.2 / §29.6: the usage→billing seam. Every successful `record()` emits a
-  // metering event to the configured sink (built in step 0) — fire-and-forget, so
-  // billing can never block or fail usage recording.
+  // W8.2 / §29.6 / §11.4: the usage→billing seam. Every successful `record()` hands
+  // the request to the metering aggregator (constructed below, once the webhook event
+  // source exists) via a forward reference — a synchronous accumulate that never
+  // blocks recording. The aggregator flushes time-bucketed export events + drains the
+  // ledger on its own loop. Undefined until wired ⇒ a no-op (billing fully disabled).
+  let meteringAggregator: MeteringAggregator | undefined;
   const usage = createUsageRecorder({
     pool,
-    onMetering: createMeteringHook(billingSink, logger),
+    onMetering: (rec) => meteringAggregator?.ingest(rec),
   });
   const secrets =
     (await pluginRegistry.resolveSecretStore(pluginCtx)) ??
@@ -922,6 +933,33 @@ export async function createManagedApp(
     });
   }
 
+  // 8b'. Metering aggregator loop (§11.4/§11.6, WP-C5.2). Assigns the `meteringAggregator`
+  //      forward reference read by the `usage` recorder's `onMetering` hook, then starts its
+  //      flush loop. Each closed bucket emits one time-bucketed export event to the billing
+  //      sink AND (when billing is enabled) drains the ledger — the debits that drive
+  //      suspension enforcement (§11.1) and the `tenant.balance_low` / `tenant.balance_exhausted`
+  //      threshold events (§11.6). Skipped when billing is disabled AND no export sink is
+  //      configured (solo/team): the recorder hook stays a no-op, no loop runs. `createApp`
+  //      ran no turns before this, so no usage is dropped by the late assignment.
+  if (config.billingEnabled || billingSink !== NOOP_BILLING_SINK) {
+    const aggregator = createMeteringAggregator({
+      pool,
+      sink: billingSink,
+      eventSource: webhookEventSource,
+      billingEnabled: config.billingEnabled,
+      lowBalanceThresholdMicros: config.billingLowBalanceThresholdMicros,
+      bucketMs: config.billingMeteringBucketMs,
+      ...(logger ? { logger } : {}),
+    });
+    meteringAggregator = aggregator;
+    aggregator.start();
+    app.addHook("onClose", async () => {
+      // Flush the in-memory buffer on graceful shutdown, then stop the loop.
+      await aggregator.flushAll().catch(() => {});
+      aggregator.stop();
+    });
+  }
+
   // 8c. Sandbox reaper (ROB-3): destroy detached VMs orphaned by terminal/archived sessions
   //     and clear their handles, so a DELETE (soft-archive) or a `terminated` session never
   //     leaks its microVM + disk forever. Runs only when a sandbox provider is wired; stopped
@@ -974,6 +1012,7 @@ export async function createManagedApp(
     sessionManager,
     eventsStore: events,
     ...(workers ? { sessionWorkers: workers } : {}),
+    ...(meteringAggregator ? { meteringAggregator } : {}),
     close,
   };
 }

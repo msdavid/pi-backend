@@ -9,6 +9,12 @@
  *
  * A least-privilege `read` key must be 403 on every mutating route (POST/DELETE)
  * and 200 on reads; an `admin` key must pass the same mutating routes.
+ *
+ * API-key management (POST /v1/api-keys, DELETE /v1/api-keys/:id) is stricter:
+ * it carries a route-level `requireScope("admin")` guard on top of the
+ * method→scope map. The regression this pins down: a `write` key must NOT be
+ * able to mint a key (issued scopes are caller-chosen, so mint-by-`write`
+ * would let any write key escalate itself to `admin`).
  */
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -36,6 +42,7 @@ describe("API-key scope matrix (R0.1)", () => {
   let pool: Pool;
   let app: FastifyInstance;
   let adminKey: string;
+  let writeKey: string;
   let readKey: string;
 
   beforeAll(async () => {
@@ -51,6 +58,9 @@ describe("API-key scope matrix (R0.1)", () => {
     const t = await createTenant(pool, { name: "Scope Matrix Tenant" });
     adminKey = (
       await issueApiKey(pool, { tenantId: t.id }, { name: "admin", scopes: ["admin"] })
+    ).key;
+    writeKey = (
+      await issueApiKey(pool, { tenantId: t.id }, { name: "write", scopes: ["read", "write"] })
     ).key;
     readKey = (
       await issueApiKey(pool, { tenantId: t.id }, { name: "read", scopes: ["read"] })
@@ -101,6 +111,43 @@ describe("API-key scope matrix (R0.1)", () => {
     expect(res.statusCode).toBe(403);
   });
 
+  // Regression (privilege escalation): before the route-level admin guard, any
+  // `write` key could mint itself an `admin` key via POST /v1/api-keys.
+  it("write key → 403 on POST /v1/api-keys (cannot mint an admin key)", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/api-keys",
+      headers: {
+        ...auth(writeKey),
+        "idempotency-key": "sm-key-write-escalate",
+        "content-type": "application/json",
+      },
+      payload: JSON.stringify({ name: "escalated", scopes: ["admin"] }),
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error.code).toBe("forbidden");
+    expect(res.json().error.message).toContain("admin");
+  });
+
+  it("write key → 403 on DELETE /v1/api-keys/:id (cannot revoke keys)", async () => {
+    const res = await app.inject({
+      method: "DELETE",
+      url: "/v1/api-keys/apikey_doesnotexist",
+      headers: auth(writeKey),
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error.code).toBe("forbidden");
+  });
+
+  it("write key → 200 on GET /v1/api-keys (listing stays a read route)", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/api-keys",
+      headers: auth(writeKey),
+    });
+    expect(res.statusCode).toBe(200);
+  });
+
   it("read key → 200 on a GET (GET /v1/vaults)", async () => {
     const res = await app.inject({
       method: "GET",
@@ -142,5 +189,13 @@ describe("API-key scope matrix (R0.1)", () => {
       payload: JSON.stringify({ name: "minted", scopes: ["read"] }),
     });
     expect(mint.statusCode).toBe(201);
+
+    // …and revokes it (DELETE /v1/api-keys/:id is admin-only too).
+    const revoke = await app.inject({
+      method: "DELETE",
+      url: `/v1/api-keys/${mint.json().id as string}`,
+      headers: auth(adminKey),
+    });
+    expect(revoke.statusCode).toBe(204);
   });
 });

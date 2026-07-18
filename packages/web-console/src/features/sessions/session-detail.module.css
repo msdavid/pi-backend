@@ -1,0 +1,149 @@
+.back {
+  margin: 0 0 var(--space-3);
+}
+
+.backLink {
+  color: var(--color-fg-muted);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+}
+
+.backLink:hover {
+  color: var(--color-fg);
+  text-decoration: underline;
+}
+
+.backLink:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
+}
+
+.header {
+  margin-bottom: var(--space-5);
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  /* §10.5: a long title + the action cluster wrap instead of overflowing. */
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-display);
+  line-height: var(--line-height-tight);
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.scopeNote {
+  font-size: var(--font-size-small);
+  color: var(--color-fg-muted);
+  white-space: nowrap;
+}
+
+/* W6: the fork outcome — deep link + the CLI follow-up (§1.4). */
+.forkNotice {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  max-width: 48rem;
+}
+
+.forkNoticeLine {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.forkNoticeLine + .forkNoticeLine {
+  margin-top: var(--space-2);
+}
+
+.forkCommand {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-1);
+}
+
+.forkCopy {
+  font: inherit;
+  font-size: var(--font-size-small);
+  color: var(--color-accent);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.forkCopy:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+}
+
+.fact {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.factLabel {
+  font-size: var(--font-size-small);
+  color: var(--color-fg-muted);
+}
+
+.cost {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono);
+  font-weight: var(--font-weight-medium);
+}
+
+.meta {
+  margin: var(--space-4) 0 0;
+  display: flex;
+  flex-direction: column;
+  max-width: 36rem;
+}
+
+.metaRow {
+  display: flex;
+  /* §10.5: long ids drop under their label on a narrow viewport. */
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  padding: var(--space-1) 0;
+}
+
+.metaLabel {
+  flex: 0 0 8rem;
+  color: var(--color-fg-muted);
+}
+
+.metaValue {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+

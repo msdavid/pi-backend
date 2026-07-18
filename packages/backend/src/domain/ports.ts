@@ -657,14 +657,21 @@ export interface Scheduler {
 // ---------------------------------------------------------------------------
 
 /**
- * A thin webhook payload: event `type` + `id` + `createdAt` only (§23.2). Recipients
+ * A thin webhook payload: event `type` + `id` + `createdAt` (§23.2). Recipients
  * fetch the full object on receipt. `event.id` is unique per event, not per delivery —
  * a repeated `id` is a retry to discard.
+ *
+ * `data` is normally absent (the thin default). A small set of event types whose
+ * defining fact is not recoverable by a later GET carry a self-contained `data`
+ * object — the tenant-balance thresholds (`tenant.balance_low` /
+ * `tenant.balance_exhausted`, console spec §11.6) carry the at-crossing balance +
+ * threshold. When present it is delivered verbatim in the payload.
  */
 export interface WebhookEvent {
   type: string;
   id: string;
   createdAt: string;
+  data?: Record<string, unknown>;
 }
 
 /**
@@ -675,4 +682,30 @@ export interface WebhookEvent {
  */
 export interface WebhookSink {
   dispatch(event: WebhookEvent): Promise<void>;
+}
+
+// ---------------------------------------------------------------------------
+// EmailSender (console spec §11.1 — WP-C5.1)
+// ---------------------------------------------------------------------------
+
+/**
+ * A transactional email to send. `template` names a server-side template; `vars`
+ * are its substitutions (e.g. the verification `token` / link). No credential is
+ * ever passed here — the provider's API key is the sender impl's own config.
+ */
+export interface OutgoingEmail {
+  to: string;
+  template: string;
+  vars: Record<string, string>;
+}
+
+/**
+ * The email-sender seam (console spec §11.1). The trial email-verification flow
+ * sends through this port; the default {@link NoopEmailSender} records sent
+ * messages (so dev/tests can read the token) and delivers nothing. A real sender
+ * (SES / Postmark / SMTP) is a drop-in impl configured from env — the provider
+ * SDK/credential lives ONLY inside that impl, never in the harness.
+ */
+export interface EmailSender {
+  send(email: OutgoingEmail): Promise<void>;
 }

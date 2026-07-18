@@ -7,7 +7,7 @@
  *
  * Organization mirrors the api-reference.md resource-family headings:
  *   common → ids → agent → environment → session → events → vault → memory →
- *   file → skill → outcome → job → webhook → tenant.
+ *   file → skill → outcome → job → webhook → tenant → console.
  *
  * Security invariants encoded here:
  *   - Vault credential sensitive fields (`token`, `accessToken`, `clientSecret`,
@@ -16,6 +16,8 @@
  *   - Webhook `signingSecret` is present only on `WebhookCreateResponse`, not `Webhook`.
  *   - API key raw `key` is present only on `ApiKeyCreateResponse`, not `ApiKey`.
  *   - `tenantId` is never client-supplied (not present on any create schema).
+ *   - Console-session `apiKey` is write-only: present only in `ConsoleSessionCreate`,
+ *     never in any response schema.
  */
 
 /** Package version (mirrors docs/api-reference.md). */
@@ -38,3 +40,7 @@ export * from "./outcome.js";
 export * from "./job.js";
 export * from "./webhook.js";
 export * from "./tenant.js";
+export * from "./billing.js";
+
+// --- Console support endpoints (non-/v1) -------------------------------------
+export * from "./console.js";

@@ -60,16 +60,18 @@ Column order is physical order; constraints and indexes are listed as Postgres r
 (`pg_get_constraintdef` / `pg_get_indexdef`), so what you read here is exactly what the
 database enforces.
 
-**28 tables** (alphabetical):
+**31 tables** (alphabetical):
 
 - [`agent_versions`](#agentversions)
 - [`agents`](#agents)
 - [`api_keys`](#apikeys)
+- [`console_sessions`](#consolesessions)
 - [`environments`](#environments)
 - [`files`](#files)
 - [`idempotency_keys`](#idempotencykeys)
 - [`job_runs`](#jobruns)
 - [`jobs`](#jobs)
+- [`ledger_entries`](#ledgerentries)
 - [`memory_stores`](#memorystores)
 - [`memory_versions`](#memoryversions)
 - [`onboarding_signups`](#onboardingsignups)
@@ -83,6 +85,7 @@ database enforces.
 - [`sessions`](#sessions)
 - [`skill_versions`](#skillversions)
 - [`skills`](#skills)
+- [`tenant_billing`](#tenantbilling)
 - [`tenant_quota_counters`](#tenantquotacounters)
 - [`tenants`](#tenants)
 - [`usage_records`](#usagerecords)
@@ -140,7 +143,7 @@ database enforces.
 
 ### `api_keys`
 
-*Defined in: `002_api_keys.sql`, `025_onboarding.sql`, `028_backfill_api_key_scopes.sql`, `040_row_level_security.sql`*
+*Defined in: `002_api_keys.sql`, `025_onboarding.sql`, `028_backfill_api_key_scopes.sql`, `040_row_level_security.sql`, `041_console_sessions.sql`*
 
 | Column | Type | Nullable | Default |
 |---|---|---|---|
@@ -161,6 +164,31 @@ database enforces.
 | Index | Definition |
 |---|---|
 | `idx_api_keys_tenant_id` | `CREATE INDEX idx_api_keys_tenant_id ON public.api_keys USING btree (tenant_id)` |
+
+### `console_sessions`
+
+*Defined in: `041_console_sessions.sql`*
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| `token_hash` | `text` | NOT NULL |  |
+| `api_key_id` | `text` | NOT NULL |  |
+| `tenant_id` | `text` | NOT NULL |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |
+| `expires_at` | `timestamp with time zone` | NOT NULL |  |
+| `last_seen_at` | `timestamp with time zone` | NOT NULL | `now()` |
+
+| Constraint | Definition |
+|---|---|
+| `console_sessions_api_key_id_fkey` | `FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE CASCADE` |
+| `console_sessions_tenant_id_fkey` | `FOREIGN KEY (tenant_id) REFERENCES tenants(id)` |
+| `console_sessions_pkey` | `PRIMARY KEY (token_hash)` |
+
+| Index | Definition |
+|---|---|
+| `idx_console_sessions_api_key_id` | `CREATE INDEX idx_console_sessions_api_key_id ON public.console_sessions USING btree (api_key_id)` |
+| `idx_console_sessions_expires_at` | `CREATE INDEX idx_console_sessions_expires_at ON public.console_sessions USING btree (expires_at)` |
+| `idx_console_sessions_tenant_id` | `CREATE INDEX idx_console_sessions_tenant_id ON public.console_sessions USING btree (tenant_id)` |
 
 ### `environments`
 
@@ -309,6 +337,35 @@ database enforces.
 | `idx_jobs_status` | `CREATE INDEX idx_jobs_status ON public.jobs USING btree (status) WHERE (status = 'active'::text)` |
 | `idx_jobs_tenant_id` | `CREATE INDEX idx_jobs_tenant_id ON public.jobs USING btree (tenant_id)` |
 | `idx_jobs_tenant_id_name` | `CREATE UNIQUE INDEX idx_jobs_tenant_id_name ON public.jobs USING btree (tenant_id, name)` |
+
+### `ledger_entries`
+
+*Defined in: `042_billing_ledger.sql`*
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| `id` | `text` | NOT NULL |  |
+| `tenant_id` | `text` | NOT NULL |  |
+| `kind` | `text` | NOT NULL |  |
+| `amount_micros` | `bigint` | NOT NULL |  |
+| `balance_after_micros` | `bigint` | NOT NULL |  |
+| `idempotency_key` | `text` | NOT NULL |  |
+| `source` | `text` | nullable |  |
+| `metadata` | `jsonb` | nullable |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |
+
+| Constraint | Definition |
+|---|---|
+| `ledger_amount_sign` | `CHECK ((((kind = ANY (ARRAY['grant'::text, 'topup'::text])) AND (amount_micros > 0)) OR ((kind = 'debit'::text) AND (amount_micros < 0)) OR (kind = 'adjustment'::text)))` |
+| `ledger_entries_amount_micros_check` | `CHECK ((amount_micros <> 0))` |
+| `ledger_entries_kind_check` | `CHECK ((kind = ANY (ARRAY['grant'::text, 'topup'::text, 'debit'::text, 'adjustment'::text])))` |
+| `ledger_entries_tenant_id_fkey` | `FOREIGN KEY (tenant_id) REFERENCES tenants(id)` |
+| `ledger_entries_pkey` | `PRIMARY KEY (id)` |
+| `ledger_entries_tenant_id_idempotency_key_key` | `UNIQUE (tenant_id, idempotency_key)` |
+
+| Index | Definition |
+|---|---|
+| `idx_ledger_entries_tenant_created` | `CREATE INDEX idx_ledger_entries_tenant_created ON public.ledger_entries USING btree (tenant_id, created_at DESC, id DESC)` |
 
 ### `memory_stores`
 
@@ -562,7 +619,7 @@ database enforces.
 
 ### `sessions`
 
-*Defined in: `003_agents.sql`, `006_sessions.sql`, `011_files.sql`, `015_job_runs.sql`, `018_session_outcomes.sql`, `019_session_threads.sql`, `020_usage_records.sql`, `023_self_hosted_work_queue.sql`, `029_sessions_synced_etag.sql`, `030_session_events.sql`, `031_tenant_quota_counters.sql`, `034_job_runs_claim.sql`, `036_audit_remediation.sql`, `040_row_level_security.sql`*
+*Defined in: `003_agents.sql`, `006_sessions.sql`, `011_files.sql`, `015_job_runs.sql`, `018_session_outcomes.sql`, `019_session_threads.sql`, `020_usage_records.sql`, `023_self_hosted_work_queue.sql`, `029_sessions_synced_etag.sql`, `030_session_events.sql`, `031_tenant_quota_counters.sql`, `034_job_runs_claim.sql`, `036_audit_remediation.sql`, `040_row_level_security.sql`, `041_console_sessions.sql`*
 
 | Column | Type | Nullable | Default |
 |---|---|---|---|
@@ -648,6 +705,28 @@ database enforces.
 | `idx_skills_tenant_id` | `CREATE INDEX idx_skills_tenant_id ON public.skills USING btree (tenant_id)` |
 | `idx_skills_tenant_title_custom` | `CREATE UNIQUE INDEX idx_skills_tenant_title_custom ON public.skills USING btree (tenant_id, display_title) WHERE (type = 'custom'::text)` |
 
+### `tenant_billing`
+
+*Defined in: `042_billing_ledger.sql`*
+
+| Column | Type | Nullable | Default |
+|---|---|---|---|
+| `tenant_id` | `text` | NOT NULL |  |
+| `lifecycle` | `text` | NOT NULL | `'trial'::text` |
+| `balance_micros` | `bigint` | NOT NULL | `0` |
+| `verification_token_hash` | `text` | nullable |  |
+| `verification_expires_at` | `timestamp with time zone` | nullable |  |
+| `verified_at` | `timestamp with time zone` | nullable |  |
+| `pending_grant_micros` | `bigint` | NOT NULL | `0` |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |
+| `updated_at` | `timestamp with time zone` | NOT NULL | `now()` |
+
+| Constraint | Definition |
+|---|---|
+| `tenant_billing_lifecycle_check` | `CHECK ((lifecycle = ANY (ARRAY['trial'::text, 'active'::text, 'suspended'::text])))` |
+| `tenant_billing_tenant_id_fkey` | `FOREIGN KEY (tenant_id) REFERENCES tenants(id)` |
+| `tenant_billing_pkey` | `PRIMARY KEY (tenant_id)` |
+
 ### `tenant_quota_counters`
 
 *Defined in: `031_tenant_quota_counters.sql`, `038_quota_counter_file_storage.sql`, `040_row_level_security.sql`*
@@ -665,7 +744,7 @@ database enforces.
 
 ### `tenants`
 
-*Defined in: `001_tenants.sql`, `002_api_keys.sql`, `003_agents.sql`, `004_agent_versions.sql`, `005_environments.sql`, `006_sessions.sql`, `007_vaults.sql`, `008_vault_credentials.sql`, `009_memory_stores.sql`, `010_memory_versions.sql`, `011_files.sql`, `012_skills.sql`, `013_skill_versions.sql`, `014_jobs.sql`, `015_job_runs.sql`, `016_webhooks.sql`, `017_webhook_deliveries.sql`, `018_session_outcomes.sql`, `019_session_threads.sql`, `020_usage_records.sql`, `021_idempotency_keys.sql`, `023_self_hosted_work_queue.sql`, `024_sandbox_hosts.sql`, `025_onboarding.sql`, `030_session_events.sql`, `031_tenant_quota_counters.sql`, `032_jobs_status_index.sql`, `037_session_events_retention.sql`*
+*Defined in: `001_tenants.sql`, `002_api_keys.sql`, `003_agents.sql`, `004_agent_versions.sql`, `005_environments.sql`, `006_sessions.sql`, `007_vaults.sql`, `008_vault_credentials.sql`, `009_memory_stores.sql`, `010_memory_versions.sql`, `011_files.sql`, `012_skills.sql`, `013_skill_versions.sql`, `014_jobs.sql`, `015_job_runs.sql`, `016_webhooks.sql`, `017_webhook_deliveries.sql`, `018_session_outcomes.sql`, `019_session_threads.sql`, `020_usage_records.sql`, `021_idempotency_keys.sql`, `023_self_hosted_work_queue.sql`, `024_sandbox_hosts.sql`, `025_onboarding.sql`, `030_session_events.sql`, `031_tenant_quota_counters.sql`, `032_jobs_status_index.sql`, `037_session_events_retention.sql`, `041_console_sessions.sql`, `042_billing_ledger.sql`*
 
 | Column | Type | Nullable | Default |
 |---|---|---|---|

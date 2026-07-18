@@ -33,6 +33,15 @@ const TENANT: TenantInfo = {
     fileStorage: 0,
     tokenSpendUsd: 0,
   },
+  quotaLimits: {
+    concurrentSessions: 10,
+    concurrentSandboxes: 10,
+    maxJobs: 100,
+    maxVaultCredentials: 100,
+    maxMemoryStores: 25,
+    maxFileStorageBytes: 10737418240,
+    monthlyTokenSpendUsd: 200,
+  },
 };
 
 function jsonRes(body: unknown, status = 200): Response {
@@ -119,6 +128,24 @@ describe("ManagedApiClient REST", () => {
       status: 401,
       requestId: "req_1",
     });
+  });
+
+  it("consoleSessionUrl derives the deep link from the backend URL (console-spec §1.4)", () => {
+    const client = new ManagedApiClient({
+      backendUrl: "https://api.example",
+      getApiKey: () => "k",
+    });
+    expect(client.consoleSessionUrl("sess_01")).toBe(
+      "https://api.example/console/sessions/sess_01",
+    );
+    // Trailing slash on the configured URL must not double up.
+    const slashed = new ManagedApiClient({
+      backendUrl: "https://api.example/",
+      getApiKey: () => "k",
+    });
+    expect(slashed.consoleSessionUrl("sess_01")).toBe(
+      "https://api.example/console/sessions/sess_01",
+    );
   });
 });
 

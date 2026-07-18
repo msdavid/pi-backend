@@ -3,12 +3,19 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createConsoleServeHook } from "./console.js";
+import {
+  createConsoleServeHook,
+  resolveConsoleConfig,
+  CONSOLE_CSP,
+} from "./console.js";
 
 /**
  * WP-4.5 smoke test: the console serve hook serves the built SPA at `/console`
  * and bypasses a preceding auth hook, while non-console routes still require
  * auth. Uses a tmp asset dir (no dependency on the real web-console build).
+ *
+ * WP-C1.1 (console spec §3): GET /console/config (public, exactly two fields),
+ * security headers on every /console* response, mode derivation.
  */
 describe("web console serve hook (WP-4.5)", () => {
   let app: FastifyInstance;
@@ -22,7 +29,13 @@ describe("web console serve hook (WP-4.5)", () => {
 
     app = Fastify({ logger: false });
     // Console hook FIRST (as server.ts registers it before auth).
-    app.addHook("onRequest", createConsoleServeHook({ distPath: dist }));
+    app.addHook(
+      "onRequest",
+      createConsoleServeHook({
+        distPath: dist,
+        config: { mode: "team", onboardingEnabled: false },
+      }),
+    );
     // A stand-in auth hook that mirrors api/middleware/auth.ts: it 401s every
     // request without a Bearer token. It has NO /console carve-out — the only
     // thing sparing console paths from 401 is the console hook's send() short-
@@ -68,8 +81,88 @@ describe("web console serve hook (WP-4.5)", () => {
     expect(res.body).not.toContain("root:");
   });
 
+  it("passes /console/session through to real routes, headers stamped (WP-C1.2)", async () => {
+    // The hook must NOT swallow /console/session (no index.html fallback): the
+    // request continues down the chain — here, into the stand-in auth hook,
+    // which 401s it. The §3.4 security headers are stamped regardless.
+    const res = await app.inject({ method: "GET", url: "/console/session" });
+    expect(res.statusCode).toBe(401);
+    expect(res.headers["content-type"]).not.toContain("text/html");
+    expect(res.headers["content-security-policy"]).toBe(CONSOLE_CSP);
+    expect(res.headers["x-content-type-options"]).toBe("nosniff");
+    expect(res.headers["referrer-policy"]).toBe("no-referrer");
+  });
+
   it("still requires auth on non-console /v1 routes", async () => {
     const res = await app.inject({ method: "GET", url: "/v1/sessions" });
     expect(res.statusCode).toBe(401);
+  });
+
+  it("serves GET /console/config without auth, with exactly the two fields (C§3.2)", async () => {
+    const res = await app.inject({ method: "GET", url: "/console/config" });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers["content-type"]).toContain("application/json");
+    expect(res.json()).toEqual({ mode: "team", onboardingEnabled: false });
+  });
+
+  it("stamps the security headers on every /console* response (C§3.4)", async () => {
+    for (const url of [
+      "/console",
+      "/console/app.js",
+      "/console/config",
+      "/console/some/deep/route",
+    ]) {
+      const res = await app.inject({ method: "GET", url });
+      expect(res.headers["content-security-policy"], url).toBe(CONSOLE_CSP);
+      expect(res.headers["x-content-type-options"], url).toBe("nosniff");
+      expect(res.headers["referrer-policy"], url).toBe("no-referrer");
+    }
+  });
+
+  it("carries the headers even on a 404 (console assets not built)", async () => {
+    const empty = mkdtempSync(join(tmpdir(), "pi-console-empty-"));
+    const bare = Fastify({ logger: false });
+    bare.addHook(
+      "onRequest",
+      createConsoleServeHook({
+        distPath: empty,
+        config: { mode: "solo", onboardingEnabled: false },
+      }),
+    );
+    const res = await bare.inject({ method: "GET", url: "/console" });
+    expect(res.statusCode).toBe(404);
+    // The hand-built 404 body is a full ErrorEnvelope (requestId required).
+    expect(res.json().error.code).toBe("not_found");
+    expect(res.json().error.requestId).toBeTruthy();
+    expect(res.headers["content-security-policy"]).toBe(CONSOLE_CSP);
+    expect(res.headers["x-content-type-options"]).toBe("nosniff");
+    expect(res.headers["referrer-policy"]).toBe("no-referrer");
+    // But /console/config still works with no dist at all.
+    const cfg = await bare.inject({ method: "GET", url: "/console/config" });
+    expect(cfg.statusCode).toBe(200);
+    expect(cfg.json()).toEqual({ mode: "solo", onboardingEnabled: false });
+    await bare.close();
+  });
+});
+
+describe("resolveConsoleConfig — mode derivation (C§3.2)", () => {
+  it("derives solo when onboarding is disabled and no override is set", () => {
+    expect(resolveConsoleConfig({ onboardingEnabled: false })).toEqual({
+      mode: "solo",
+      onboardingEnabled: false,
+    });
+  });
+
+  it("derives saas when onboarding is enabled", () => {
+    expect(resolveConsoleConfig({ onboardingEnabled: true })).toEqual({
+      mode: "saas",
+      onboardingEnabled: true,
+    });
+  });
+
+  it("CONSOLE_MODE override wins over derivation", () => {
+    expect(
+      resolveConsoleConfig({ consoleMode: "team", onboardingEnabled: true }),
+    ).toEqual({ mode: "team", onboardingEnabled: true });
   });
 });

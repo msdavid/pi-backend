@@ -19,11 +19,22 @@ import { createConsoleServeHook } from "../console.js";
 /** Minimal FastifyReply capturing what the hook sends. */
 function mockReply(): {
   reply: FastifyReply;
-  record: { status: number; contentType?: string; payload: unknown };
+  record: {
+    status: number;
+    contentType?: string;
+    payload: unknown;
+    headers: Record<string, string>;
+  };
 } {
-  const record: { status: number; contentType?: string; payload: unknown } = {
+  const record: {
+    status: number;
+    contentType?: string;
+    payload: unknown;
+    headers: Record<string, string>;
+  } = {
     status: 200,
     payload: undefined,
+    headers: {},
   };
   const reply = {
     status(code: number) {
@@ -32,6 +43,10 @@ function mockReply(): {
     },
     type(ct: string) {
       record.contentType = ct;
+      return this;
+    },
+    header(name: string, value: string) {
+      record.headers[name] = value;
       return this;
     },
     send(payload: unknown) {
@@ -43,7 +58,9 @@ function mockReply(): {
 }
 
 function req(url: string): FastifyRequest {
-  return { url } as FastifyRequest;
+  // `id` mirrors Fastify's per-request id — the hook stamps it as the
+  // envelope's `requestId` (required by the contracts ErrorEnvelope).
+  return { url, id: "req-test" } as FastifyRequest;
 }
 
 const SECRET = "top-secret-backup-contents";
@@ -85,7 +102,10 @@ describe("createConsoleServeHook — path-traversal guard (SEC-11)", () => {
     await hook(req("/console/../dist-backup/secret.txt"), reply);
     expect(record.status).toBe(404);
     expect(JSON.stringify(record.payload)).not.toContain(SECRET);
-    expect((record.payload as { error: { code: string } }).error.code).toBe("not_found");
+    const err = (record.payload as { error: { code: string; requestId: string } }).error;
+    expect(err.code).toBe("not_found");
+    // The hand-built 404 must be a full ErrorEnvelope — requestId included.
+    expect(err.requestId).toBe("req-test");
   });
 
   it("leaves non-console paths untouched", async () => {
@@ -95,5 +115,20 @@ describe("createConsoleServeHook — path-traversal guard (SEC-11)", () => {
     // Hook returned without sending — auth + route handlers proceed.
     expect(record.payload).toBeUndefined();
     expect(record.status).toBe(200);
+    // No console headers leak onto non-console responses from this hook.
+    expect(record.headers).toEqual({});
+  });
+
+  it("stamps the console security headers (console spec §3.4) on 200s and 404s alike", async () => {
+    const hook = createConsoleServeHook({ distPath });
+    for (const url of ["/console/app.js", "/console/../dist-backup/secret.txt"]) {
+      const { reply, record } = mockReply();
+      await hook(req(url), reply);
+      expect(record.headers["Content-Security-Policy"]).toBe(
+        "default-src 'self'; frame-ancestors 'none'",
+      );
+      expect(record.headers["X-Content-Type-Options"]).toBe("nosniff");
+      expect(record.headers["Referrer-Policy"]).toBe("no-referrer");
+    }
   });
 });

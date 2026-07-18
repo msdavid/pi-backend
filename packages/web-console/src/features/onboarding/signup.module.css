@@ -1,0 +1,129 @@
+/* Signup + first-run checklist (WP-C3.7; console-spec §9.6, DP-12). Tokens
+   only; the page layout mirrors the sign-in card (features/auth). */
+
+.page {
+  min-height: 100vh;
+  min-height: 100dvh; /* §10.5: dynamic viewport on phones */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-5);
+}
+
+.card {
+  width: 100%;
+  max-width: 28rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-display);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+}
+
+.lead {
+  margin: 0;
+  color: var(--color-fg-muted);
+}
+
+.submit {
+  margin-top: var(--space-4);
+  width: 100%;
+}
+
+.loadError {
+  color: var(--color-danger);
+  max-width: 32rem;
+  text-align: center;
+}
+
+.link {
+  color: inherit;
+  text-decoration: underline;
+}
+
+/* Key-shown-once styling now lives in src/ui/secret-reveal.module.css. */
+
+.reason {
+  margin: 0;
+  font-size: var(--font-size-small);
+  color: var(--color-fg-muted);
+}
+
+/* --- First-run checklist -------------------------------------------------- */
+
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.step {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.stepStatus {
+  flex-shrink: 0;
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-medium);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--status-neutral-bg);
+  color: var(--status-neutral-fg);
+}
+
+.stepDone {
+  background: var(--status-success-bg);
+  color: var(--status-success-fg);
+}
+
+.stepBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.stepTitle {
+  margin: 0;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+}
+
+.stepText {
+  margin: 0;
+  color: var(--color-fg-muted);
+}
+
+.command {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-1);
+}
+
+.progressLine {
+  margin: 0;
+  font-size: var(--font-size-small);
+  color: var(--color-fg-muted);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+}

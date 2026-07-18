@@ -52,12 +52,18 @@ export {
   WebhookBillingSink,
   defaultBillingBackoff,
   DEFAULT_BILLING_MAX_ATTEMPTS,
-  createMeteringHook,
+  MeteringAggregator,
+  createMeteringAggregator,
+  appendEntryWithThresholdEvents,
+  emitBalanceThresholdEvents,
+  detectBalanceCrossings,
   type MeteringEvent,
   type BillingSink,
   type WebhookBillingSinkOptions,
   type MeteringRecord,
   type MeteringHook,
+  type MeteringAggregatorOptions,
+  type BalanceCrossings,
 } from "./domain/billing/index.js";
 
 // WP-1.13 composition root: the fully-wired app + SessionManager registry + boot.
@@ -375,6 +381,11 @@ export {
   BUDGET_STOP_REASON,
   type BudgetEnforcement,
 } from "./domain/usage/budget.js";
+export {
+  getTenantUsageTimeseries,
+  resolveTenantUsageRange,
+  type TenantUsageTimeseriesOptions,
+} from "./domain/usage/usage-timeseries.js";
 
 // WP-4.4 Quota enforcement + tier mapping (§27.3): per-tenant limits on
 // concurrent sessions/sandboxes, jobs, vault credentials, memory stores, file
