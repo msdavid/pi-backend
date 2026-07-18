@@ -1,7 +1,7 @@
 # Phase-4 conformance gate
 
-Release items for the continue-from-any-browser phase (`tmp/console-spec.md`
-§10, cited as C§n; journey W5 from `tmp/console-user-journeys.md`). Runs
+Release items for the continue-from-any-browser phase (`docs/console-spec.md`
+§10, cited as C§n; journey W5 from `docs/console-user-journeys.md`). Runs
 inside the single `conformance-gate` vitest project (`pnpm test:gate`),
 extended — never trimmed — like the phase-1/2/3 suites beside it.
 

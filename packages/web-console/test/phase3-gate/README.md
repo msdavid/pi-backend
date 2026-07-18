@@ -1,8 +1,8 @@
 # Phase-3 conformance gate
 
 Release items for the tenant-admin surface + onboarding phase
-(`tmp/console-spec.md` §13, cited as C§n; journeys from
-`tmp/console-user-journeys.md`, cited as Wn). Runs inside the single
+(`docs/console-spec.md` §13, cited as C§n; journeys from
+`docs/console-user-journeys.md`, cited as Wn). Runs inside the single
 `conformance-gate` vitest project (`pnpm test:gate`), extended — never
 trimmed — like the phase-1/2 suites beside it.
 

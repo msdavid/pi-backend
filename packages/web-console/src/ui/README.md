@@ -1,7 +1,7 @@
 # src/ui — the console's owned design system
 
 Small, dependency-free component set implementing the design language of
-`tmp/console.md` §4 and the design principles DP-1..DP-14 (§3). No external
+`docs/console.md` §4 and the design principles DP-1..DP-14 (§3). No external
 component library, no CDN assets, no web fonts — system font stack and inline
 SVG icons only (the `default-src 'self'` CSP of console-spec §3.4 enforces
 this at runtime; tests enforce it at build time).
