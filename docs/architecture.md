@@ -352,6 +352,10 @@ included), liveness monitor pulling failed hosts from rotation, cross-host re-at
 with placement-table reconciliation. Design note:
 [`spec/multi-host-design.md`](spec/multi-host-design.md).
 
+A third engine — exe.dev-hosted VMs behind the same port — was investigated and
+deferred; feasibility findings and the future-integration plan live in
+[`spec/exe-dev-sandbox-engine.md`](spec/exe-dev-sandbox-engine.md).
+
 ### 4.5 pi-extensions
 
 Managed features are implemented *as Pi extensions loaded into each `AgentSession`*,
