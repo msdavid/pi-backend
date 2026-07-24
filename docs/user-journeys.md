@@ -37,10 +37,11 @@ all three roles — the layering still holds, they just switch hats (and keys).
 
 *Goal: a working backend on one Linux/KVM machine.*
 
-1. Provision a Linux host with `/dev/kvm`, Node ≥ 20, Docker (or managed
-   Postgres 16 + an S3-compatible or GCS store).
-2. `pnpm install && pnpm build`; start dependencies (`docker compose up -d postgres
-   minio` in dev).
+1. Provision a Linux host with `/dev/kvm`, Node ≥ 20, and Docker (or a managed
+   Postgres 16). The object store is a **local directory** by default — put it on
+   durable disk.
+2. `pnpm install && pnpm build`; start the dependency (`docker compose up -d postgres`
+   in dev — the object store needs nothing running).
 3. One-time microsandbox bootstrap: `node -e "import('microsandbox').then(m =>
    m.install())"` — populates `~/.microsandbox/`.
 4. Generate and safely store a 32-byte **vault key**; set `VAULT_KEY` (or
@@ -69,8 +70,9 @@ non-`BYPASSRLS` database role or the row-level-security backstop silently does n
 
 *Goal: self-service signup with per-tenant isolation and billing.*
 
-1. Switch the object store to S3-compatible or GCS; set `RATE_LIMIT_STORE=postgres` so rate
-   ceilings hold across replicas.
+1. Move the object store off local disk — `OBJECT_STORE_KIND=gcs` + `GCS_BUCKET` (GCS
+   authenticates via Application Default Credentials); set `RATE_LIMIT_STORE=postgres` so
+   rate ceilings hold across replicas.
 2. Set `ONBOARDING_ENABLED=true` (off by default — a self-hosted install should not
    silently accept strangers). Anonymous signup is rate-limited per IP
    (`RATE_LIMIT_ANON_RPM`).
