@@ -23,13 +23,13 @@ jobs:
     name: Typecheck
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
+      # No `version` input: pnpm/action-setup errors out when the version is given both
+      # here and as `packageManager` in package.json, which is the single source of truth.
+      - uses: pnpm/action-setup@v6
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
 
@@ -37,13 +37,13 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
+      # No `version` input: pnpm/action-setup errors out when the version is given both
+      # here and as `packageManager` in package.json, which is the single source of truth.
+      - uses: pnpm/action-setup@v6
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
 
@@ -63,13 +63,13 @@ jobs:
       DOCKER_HOST: unix:///var/run/docker.sock
       TESTCONTAINERS_RYUK_DISABLED: "true"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
+      # No `version` input: pnpm/action-setup errors out when the version is given both
+      # here and as `packageManager` in package.json, which is the single source of truth.
+      - uses: pnpm/action-setup@v6
       - name: Verify container runtime (fail-closed prerequisite)
         run: docker info
       - name: Pre-pull test images
@@ -108,13 +108,13 @@ jobs:
       PI_REQUIRE_INTEGRATION: "1"
       TESTCONTAINERS_RYUK_DISABLED: "true"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
+      # No `version` input: pnpm/action-setup errors out when the version is given both
+      # here and as `packageManager` in package.json, which is the single source of truth.
+      - uses: pnpm/action-setup@v6
       - name: Verify /dev/kvm
         run: |
           test -e /dev/kvm || { echo "::error::/dev/kvm missing — this runner is not KVM-capable"; exit 1; }
