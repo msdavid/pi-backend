@@ -257,6 +257,13 @@ Two deliberate wrinkles: the `testkit`↔`backend` relationship looks circular b
 acyclic (types one way, devDependency the other), and the worker's isolation means the
 work-item shape exists in two places that must be kept in sync by hand.
 
+That first wrinkle has one concrete consequence: **`pnpm -r build` cannot order the
+workspace on its own.** pnpm sees the cycle and may build `testkit` before `backend`,
+which fails on a clean tree because cross-package types resolve only through each
+package's built (gitignored) `dist/*.d.ts` — there are no project references and no path
+mapping. The root `build` script therefore builds everything *except* `testkit` first,
+then `testkit`. Run `pnpm build` — not `pnpm -r build` — after a fresh clone.
+
 ### 3.3 Deployment shapes
 
 1. **Single-host self-hosted (v1 default):** one process, one implicit tenant, local
