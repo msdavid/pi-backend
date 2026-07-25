@@ -208,6 +208,10 @@ export class SpawnExecutor implements Executor {
         }
       });
 
+      // The script may exit before reading stdin, closing the pipe mid-write. `close`
+      // already reports that exit as an error result, so the EPIPE has nothing to add —
+      // but with no listener it surfaces as an unhandled error and takes the process down.
+      child.stdin.on("error", () => {});
       child.stdin.end(payload);
     });
   }

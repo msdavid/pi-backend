@@ -31,6 +31,10 @@ jobs:
       # here and as `packageManager` in package.json, which is the single source of truth.
       - uses: pnpm/action-setup@v6
       - run: pnpm install --frozen-lockfile
+      # Cross-package types resolve through each package's built dist/*.d.ts (no project
+      # references, no path mapping), and dist/ is gitignored — so a clean checkout must
+      # build before it can typecheck, or every @pi-managed/* import fails with TS2307.
+      - run: pnpm build
       - run: pnpm typecheck
 
   lint:
@@ -75,6 +79,9 @@ jobs:
       - name: Pre-pull test images
         run: docker pull postgres:16-alpine
       - run: pnpm install --frozen-lockfile
+      # Same reason as the typecheck job: suites import @pi-managed/* by package name,
+      # which resolves to the gitignored dist/.
+      - run: pnpm build
       - run: pnpm test
 
   # @kvm tests: the real microsandbox provider, the sandbox-operations adapter, the
@@ -121,6 +128,9 @@ jobs:
           test -w /dev/kvm || { echo "::error::/dev/kvm not writable by the runner user (add it to the 'kvm' group)"; exit 1; }
           ls -l /dev/kvm
       - run: pnpm install --frozen-lockfile
+      # Same reason as the typecheck job: the @kvm suites import @pi-managed/* by package
+      # name, which resolves to the gitignored dist/.
+      - run: pnpm build
       - name: Verify msb native package installed
         run: ls node_modules/@superradcompany/
       - name: Bootstrap microsandbox runtime (idempotent)
