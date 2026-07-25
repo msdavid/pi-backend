@@ -53,12 +53,31 @@ export async function createObjectStore(
 }
 
 /**
- * Derive the object store from the backend {@link Config} (§7.3). P0/v1 selects the
- * filesystem impl from `objectStoreRoot`; SaaS (S3/GCS) selection will land when the
- * config schema gains those fields (later WP).
+ * Derive the object store from the backend {@link Config} (§7.3), per
+ * `OBJECT_STORE_KIND`:
+ *
+ * - `filesystem` (default) — a local directory at `objectStoreRoot`.
+ * - `gcs` — Google Cloud Storage on `gcsBucket`, authenticating via Application Default
+ *   Credentials. The config schema guarantees the bucket is set in this mode (it fails
+ *   closed at load), so there is no fallback branch here to silently write durable state
+ *   to local disk.
+ *
+ * S3 remains a composition-time injection (`createApp({ objectStoreConfig })`) — it needs
+ * endpoint/region/credential fields the env schema does not carry.
  */
 export async function objectStoreFromConfig(
   config: Config,
 ): Promise<ObjectStore> {
-  return createObjectStore({ kind: "filesystem", root: config.objectStoreRoot });
+  switch (config.objectStoreKind) {
+    case "gcs": {
+      if (!config.gcsBucket) {
+        throw new Error(
+          "objectStoreFromConfig: config.gcsBucket is required when objectStoreKind is 'gcs' (set GCS_BUCKET)",
+        );
+      }
+      return createObjectStore({ kind: "gcs", bucket: config.gcsBucket });
+    }
+    case "filesystem":
+      return createObjectStore({ kind: "filesystem", root: config.objectStoreRoot });
+  }
 }

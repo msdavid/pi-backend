@@ -35,6 +35,19 @@ export const RateLimitStore = z.enum(["memory", "postgres"]);
 export type RateLimitStore = z.infer<typeof RateLimitStore>;
 
 /**
+ * Which object-store impl the composition root builds (§7.3, §28). `filesystem` —
+ * a local directory at {@link ConfigSchema.objectStoreRoot} (the default).
+ * `gcs` — Google Cloud Storage against {@link ConfigSchema.gcsBucket}, authenticating
+ * via Application Default Credentials.
+ *
+ * The S3 impl is deliberately absent: it needs endpoint/region/credential fields this
+ * schema does not carry, so it stays a composition-time injection
+ * (`createApp({ objectStoreConfig: { kind: "s3", … } })`).
+ */
+export const ObjectStoreKind = z.enum(["filesystem", "gcs"]);
+export type ObjectStoreKind = z.infer<typeof ObjectStoreKind>;
+
+/**
  * Which sandbox provider the composition root builds (R6.7, §7.2).
  * `single` → the host-local {@link MicrosandboxProvider}; `multi` → the routing
  * {@link MultiHostSandboxProvider} over the host pool ({@link ConfigSchema.sandboxHosts}).
@@ -113,8 +126,24 @@ export const ConfigSchema = z.object({
    * pinning a connection indefinitely. `0` disables the timeout.
    */
   dbStatementTimeoutMs: z.number().int().nonnegative().default(30_000),
+  /**
+   * Which object-store impl to build (§7.3, §28). Env `OBJECT_STORE_KIND`, default
+   * `filesystem`. `gcs` additionally requires {@link ConfigSchema.gcsBucket}.
+   */
+  objectStoreKind: ObjectStoreKind.default("filesystem"),
   /** Root directory of the local object store (§7.3, §28). Env `OBJECT_STORE_ROOT`. */
   objectStoreRoot: z.string().min(1).default("./data/objectstore"),
+  /**
+   * GCS bucket backing the object store when `objectStoreKind === "gcs"` (§28). Env
+   * `GCS_BUCKET`. Required in that mode — boot **fails closed** without it rather than
+   * silently falling back to local disk, which would strand every future write on a
+   * host-local directory nobody is backing up.
+   *
+   * Credentials come from Application Default Credentials (the attached service account
+   * on GCE / Cloud Run / GKE, or `GOOGLE_APPLICATION_CREDENTIALS` locally) — the backend
+   * reads no key material of its own. Ignored unless the kind is `gcs`.
+   */
+  gcsBucket: z.string().min(1).optional(),
   /**
    * Durable host-side root for per-session local JSONL logs (R2.10). Env
    * `PI_SESSION_LOCAL_DIR`. Default `./data/sessions` — deliberately NOT `/tmp`: the
@@ -363,6 +392,17 @@ export const ConfigSchema = z.object({
   otelExporterOtlpEndpoint: z.string().optional(),
   otelServiceName: z.string().optional(),
   otelResourceAttributes: z.string().optional(),
+}).superRefine((config, ctx) => {
+  // Fail closed: `OBJECT_STORE_KIND=gcs` with no bucket must refuse to boot rather than
+  // fall back to local disk — a silent fallback writes durable state (JSONL transcripts,
+  // snapshots) to an unbacked host directory.
+  if (config.objectStoreKind === "gcs" && config.gcsBucket === undefined) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["gcsBucket"],
+      message: "GCS_BUCKET is required when OBJECT_STORE_KIND=gcs",
+    });
+  }
 });
 export type Config = z.infer<typeof ConfigSchema>;
 
@@ -381,7 +421,9 @@ type ConfigFile = Partial<{
   dbPoolMax: number;
   dbConnectionTimeoutMs: number;
   dbStatementTimeoutMs: number;
+  objectStoreKind: ObjectStoreKind;
   objectStoreRoot: string;
+  gcsBucket: string;
   sessionLocalDir: string;
   sandboxRuntime: SandboxRuntime;
   sandboxMode: SandboxMode;
@@ -542,7 +584,9 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
       env.DB_STATEMENT_TIMEOUT_MS !== undefined
         ? Number(env.DB_STATEMENT_TIMEOUT_MS)
         : undefined,
+    objectStoreKind: env.OBJECT_STORE_KIND,
     objectStoreRoot: env.OBJECT_STORE_ROOT,
+    gcsBucket: env.GCS_BUCKET,
     sessionLocalDir: env.PI_SESSION_LOCAL_DIR,
     sandboxRuntime: env.SANDBOX_RUNTIME,
     sandboxMode: env.SANDBOX_MODE,

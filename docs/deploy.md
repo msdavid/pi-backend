@@ -12,7 +12,7 @@ runtime** — plus a Linux host with **KVM** for microVM isolation.
 | **Linux host with `/dev/kvm`** | microsandbox microVMs run via libkrunfw + KVM | The sandbox provider is inert without it. `@kvm`-gated tests skip cleanly when absent. |
 | **Node.js ≥ 20** | ESM service, `dist/main.js` entrypoint | Build with `pnpm --filter @pi-managed/backend build`. |
 | **Postgres 16** | Control-plane DB (sessions, agents, environments, vaults, usage, …) | Migrations run **forward-only on boot** (`runMigrations(dbUrl, "up")`). |
-| **Object store** | File payloads, memory stores, snapshots, JSONL sync (§28) | v1 default: local filesystem. SaaS: any S3-compatible store (e.g. MinIO) or Google Cloud Storage. |
+| **Object store** | File payloads, memory stores, snapshots, JSONL sync (§28) | **Local filesystem by default** (`OBJECT_STORE_ROOT` — point it at durable storage), or **Google Cloud Storage** via `OBJECT_STORE_KIND=gcs` + `GCS_BUCKET` (§2). An S3-compatible adapter also exists (`infra/objectstore/s3.ts`) but is composition-time only. |
 | **microsandbox runtime** | Provisiones/execs detached microVMs (§5.4, §10) | One-time `microsandbox` install bootstrap (§3 below). |
 
 ## 2. Configuration
@@ -23,7 +23,9 @@ see `infra/config/index.ts`). The composed app requires:
 | Env var | Required | Default | Meaning |
 |---|---|---|---|
 | `DB_URL` | **yes** | — | Postgres connection URL. The app refuses to boot without it. |
-| `OBJECT_STORE_ROOT` | no | `./data/objectstore` | Filesystem root for the v1 object store. |
+| `OBJECT_STORE_KIND` | no | `filesystem` | Which object-store impl to build. `filesystem` → a local directory at `OBJECT_STORE_ROOT`. `gcs` → Google Cloud Storage on `GCS_BUCKET`. S3 is **not** env-selectable (it needs endpoint/region/credential fields the schema does not carry) — inject it at composition time via `createApp({ objectStoreConfig: { kind: "s3", … } })`. |
+| `OBJECT_STORE_ROOT` | no | `./data/objectstore` | Filesystem root for the local object store. Used when `OBJECT_STORE_KIND=filesystem`. Put it on **durable** storage — it holds the JSONL transcripts. |
+| `GCS_BUCKET` | **yes*** | — | GCS bucket backing the object store. **Required when `OBJECT_STORE_KIND=gcs`** — boot fails closed without it rather than silently falling back to local disk. Credentials come from **Application Default Credentials** (the attached service account on GCE / Cloud Run / GKE, or `GOOGLE_APPLICATION_CREDENTIALS` locally); the backend holds no key material of its own. Enable **object versioning** on the bucket — the adapter probes for it and purges every generation on delete. |
 | `SANDBOX_RUNTIME` | no | `disabled` | `enabled` to wire the `MicrosandboxProvider` (provisions real microVMs). `disabled` → the `sandbox` readiness check reports `down` and sessions cannot wake. |
 | `PORT` | no | `3000` | HTTP bind port. |
 | `LOG_LEVEL` | no | `info` | pino level. |
@@ -154,8 +156,10 @@ Set `SANDBOX_RUNTIME=disabled` on non-KVM hosts.
 ## 5. Boot
 
 ```bash
-# 1. Start the stateful deps (dev):
-docker compose up -d postgres minio
+# 1. Start the stateful deps (dev). Postgres only — the object store defaults to the
+#    local filesystem at OBJECT_STORE_ROOT. (compose also defines a `minio` service,
+#    used by the S3 adapter's contract test, not by the running backend.)
+docker compose up -d postgres
 
 # 2. Build:
 pnpm --filter @pi-managed/backend build

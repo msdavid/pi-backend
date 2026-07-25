@@ -4,20 +4,26 @@ A self-deployable service that gives the [Pi coding agent](https://github.com/ea
 
 The service is **tailored for Pi** — it adapts the *concepts* of managed agents (agents, sessions, environments, events, tools, memory, multi-agent orchestration, outcomes, scheduled deployments) to Pi-native idioms rather than mirroring any other API.
 
+- **Getting started:** [`docs/getting-started.md`](docs/getting-started.md) (install → running, easy steps)
 - **Architecture:** [`docs/architecture.md`](docs/architecture.md) (layered overview — start here)
 - **API reference:** [`docs/api-reference.md`](docs/api-reference.md) (wire contract)
 - **Deployment:** [`docs/deploy.md`](docs/deploy.md) (full deploy guide)
+- **Operations:** [`docs/operations.md`](docs/operations.md) (run it in production — backup, restore, upgrade, incidents)
 - **Web console:** [`docs/console.md`](docs/console.md) (design), [`docs/console-spec.md`](docs/console-spec.md) (normative spec), [`docs/console-user-journeys.md`](docs/console-user-journeys.md) (journeys)
 
 ---
 
 ## Quick start (dev)
 
+> New here? [`docs/getting-started.md`](docs/getting-started.md) is the same path as a
+> friendly step-by-step (with the macOS / no-KVM route and the vault-key step spelled
+> out). The condensed version follows.
+
 ### Prerequisites
 
 - **Node.js ≥ 20**
 - **pnpm** (`corepack enable` — the version is pinned via `packageManager` in `package.json`)
-- **Docker** (for the dev Postgres + MinIO)
+- **Docker** (for the dev Postgres; the object store defaults to the local filesystem)
 - **Linux with `/dev/kvm`** (for real microVM sandboxes — macOS works for everything *except* sandbox execution)
 
 ### 1. Install
@@ -27,11 +33,15 @@ git clone <repo> pi-backend && cd pi-backend
 pnpm install
 ```
 
-### 2. Start the stateful dependencies
+### 2. Start Postgres
 
 ```bash
-docker compose up -d postgres minio
+docker compose up -d postgres
 ```
+
+The object store defaults to the local filesystem (`OBJECT_STORE_ROOT`, default
+`./data/objectstore`) — nothing else to start. The compose file's **MinIO** service is
+only for the S3 adapter's contract test, not for running the backend.
 
 ### 3. One-time microsandbox bootstrap (for real sandboxes)
 
@@ -140,11 +150,13 @@ packages/
   worker             # default self-hosted worker (§10.4)
   web-console        # web console UI (§26.6, console spec)
 docs/
+  getting-started.md # install → running (dev / local, easy steps)
   architecture.md    # layered architecture overview
   user-journeys.md   # persona journeys (platform admin / tenant admin / user)
   api-reference.md   # the wire contract
   db-schema.md       # Postgres schema (generated — see `pnpm db:schema:gen`)
   deploy.md          # deployment guide
+  operations.md      # production runbook (backup, restore, upgrade, incidents)
   session-worker-pool.md  # harness-isolation pool (`SESSION_WORKER_MODE=pool`)
   ...
 ```
@@ -170,7 +182,9 @@ and exits 1 rather than starting in a half-configured state. Key vars:
 | Env var | Required | Default | Meaning |
 |---|---|---|---|
 | `DB_URL` | **yes** | — | Postgres connection URL |
-| `OBJECT_STORE_ROOT` | no | `./data/objectstore` | Filesystem root (v1 object store) |
+| `OBJECT_STORE_KIND` | no | `filesystem` | `filesystem` → a local directory at `OBJECT_STORE_ROOT`; `gcs` → Google Cloud Storage on `GCS_BUCKET`. S3 stays a composition-time injection |
+| `OBJECT_STORE_ROOT` | no | `./data/objectstore` | Filesystem root, used when `OBJECT_STORE_KIND=filesystem`. Holds the JSONL transcripts — put it on durable storage |
+| `GCS_BUCKET` | **yes*** | — | GCS bucket. Required when `OBJECT_STORE_KIND=gcs` (boot fails closed without it). Credentials via Application Default Credentials — no key material in backend env |
 | `PI_SESSION_LOCAL_DIR` | no | `./data/sessions` | Durable host-side root for per-session JSONL logs. Deliberately not `/tmp` — this is the file the object-store sync and cold-wake restore depend on surviving a host reboot |
 | `SANDBOX_RUNTIME` | no | `disabled` | `enabled` to wire real microVMs |
 | `SANDBOX_MODE` | no | `single` | `single` → one host-local `MicrosandboxProvider`; `multi` → routes across a `SANDBOX_HOSTS` pool via `MultiHostSandboxProvider`. Only meaningful with `SANDBOX_RUNTIME=enabled` |
@@ -204,9 +218,11 @@ least-privilege, not `admin`.
 
 ## Documentation
 
+- [**Getting started**](docs/getting-started.md) — the shortest path from a fresh clone to a running backend (dev / local, with the macOS / no-KVM route)
 - [**Architecture**](docs/architecture.md) — layered overview: executive summary, the whole system at a glance, containers, backend internals, runtime views, cross-cutting concerns, decision log
 - [**User journeys**](docs/user-journeys.md) — platform admin, tenant admin, and user (Pi coder) journeys end to end, plus machine actors
 - [**Deploy guide**](docs/deploy.md) — prerequisites, config, boot, health, graceful shutdown, deployment shapes
+- [**Operations**](docs/operations.md) — the production runbook: upgrade/restart, backup, restore/DR, key rotation, fronting with TLS, incident response
 - [**API reference**](docs/api-reference.md) — every endpoint, request/response schema, error taxonomy, event catalog, SSE wire format
 - [**DB schema**](docs/db-schema.md) — every Postgres table, indexes, constraints, encrypted-column strategy
 - [**Internal contracts**](docs/internal-contracts.md) — the port interfaces (SandboxProvider, SessionRuntime, SecretStore, …)
