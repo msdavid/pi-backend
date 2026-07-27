@@ -105,17 +105,19 @@ describe("ledger (integration)", () => {
 
     const row = await getBillingRow(pool, tenantId);
     expect(row?.balanceMicros).toBe(1_000_000);
-    // 41 entries: seed + 40 ops. The last entry's balance_after equals the balance.
-    const { rows } = await query<{ count: string; maxbal: string }>(
+    // 41 entries: seed + 40 ops, each recorded exactly once.
+    //
+    // We deliberately do NOT assert that the last entry's balance_after equals the
+    // balance: nothing here can identify the last-APPLIED entry. `created_at` defaults
+    // to `now()`, which is transaction-START time in Postgres, so it does not track the
+    // order in which concurrent transactions take the `FOR UPDATE` lock, and `id` is
+    // random. The authoritative no-lost-update guarantee is `balanceMicros` above.
+    const { rows } = await query<{ count: string }>(
       pool,
-      `SELECT count(*)::text AS count,
-              (SELECT balance_after_micros FROM ledger_entries
-                 WHERE tenant_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1)::text AS maxbal
-         FROM ledger_entries WHERE tenant_id = $1`,
+      "SELECT count(*)::text AS count FROM ledger_entries WHERE tenant_id = $1",
       [tenantId],
     );
     expect(rows[0].count).toBe("41");
-    expect(rows[0].maxbal).toBe("1000000");
   });
 
   it("concurrent replays of the SAME key apply exactly once", async () => {

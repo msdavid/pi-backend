@@ -195,5 +195,9 @@ describe.skipIf(!RUNTIME)("scheduler batching (§17.8)", () => {
     // instant re-enumerates from MAX(scheduled_at) and records nothing new.
     await scheduler.tick();
     expect(await runsFor(jobId)).toHaveLength(minutes);
-  }, 60_000); // enumerating > one chunk of minute occurrences is the slow part
+    // Enumerating > one chunk of minute occurrences is the slow part: 5,200 of them,
+    // twice, against a containerized Postgres. 60s was enough on developer hardware but
+    // not on a 2-core CI runner sharing the box with the other parallel suites, so this
+    // matches the package's 180s hookTimeout rather than sitting just under the wire.
+  }, 180_000);
 });

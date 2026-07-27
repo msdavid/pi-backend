@@ -17,7 +17,7 @@ path over production hardening. When you are ready to deploy for real, follow
 
 | Tool | Why | Check |
 |---|---|---|
-| **Node.js ≥ 20** | The service is an ESM Node process | `node --version` |
+| **Node.js ≥ 22.19** | The service is an ESM Node process; the embedded Pi agent's `undici` requires 22.19+ | `node --version` |
 | **pnpm** | Workspace package manager (pinned via `packageManager`) | `corepack enable` then `pnpm --version` |
 | **Docker** | Runs the dev Postgres | `docker info` |
 | **Linux + `/dev/kvm`** | *Only* for real microVM sandboxes — optional to start | `ls -l /dev/kvm` |

@@ -23,27 +23,31 @@ jobs:
     name: Typecheck
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: "20"
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
+          node-version: "22"
+      # No `version` input: pnpm/action-setup errors out when the version is given both
+      # here and as `packageManager` in package.json, which is the single source of truth.
+      - uses: pnpm/action-setup@v6
       - run: pnpm install --frozen-lockfile
+      # Cross-package types resolve through each package's built dist/*.d.ts (no project
+      # references, no path mapping), and dist/ is gitignored — so a clean checkout must
+      # build before it can typecheck, or every @pi-managed/* import fails with TS2307.
+      - run: pnpm build
       - run: pnpm typecheck
 
   lint:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: "20"
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
+          node-version: "22"
+      # No `version` input: pnpm/action-setup errors out when the version is given both
+      # here and as `packageManager` in package.json, which is the single source of truth.
+      - uses: pnpm/action-setup@v6
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
 
@@ -63,18 +67,21 @@ jobs:
       DOCKER_HOST: unix:///var/run/docker.sock
       TESTCONTAINERS_RYUK_DISABLED: "true"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: "20"
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
+          node-version: "22"
+      # No `version` input: pnpm/action-setup errors out when the version is given both
+      # here and as `packageManager` in package.json, which is the single source of truth.
+      - uses: pnpm/action-setup@v6
       - name: Verify container runtime (fail-closed prerequisite)
         run: docker info
       - name: Pre-pull test images
         run: docker pull postgres:16-alpine
       - run: pnpm install --frozen-lockfile
+      # Same reason as the typecheck job: suites import @pi-managed/* by package name,
+      # which resolves to the gitignored dist/.
+      - run: pnpm build
       - run: pnpm test
 
   # @kvm tests: the real microsandbox provider, the sandbox-operations adapter, the
@@ -88,7 +95,7 @@ jobs:
   #     goes green) rather than passing vacuously — that is the intended fail-closed shape.
   #   * Linux host — bare metal, or a VM with NESTED VIRTUALIZATION enabled — exposing
   #     /dev/kvm, with the runner's user in the `kvm` group (/dev/kvm must be writable).
-  #   * Node.js >= 20 + pnpm on PATH; a container runtime (docker or podman) for the
+  #   * Node.js >= 22.19 + pnpm on PATH; a container runtime (docker or podman) for the
   #     Postgres-backed halves of the E2E and credential-injection gates.
   #   * microsandbox one-time bootstrap:
   #       node -e "import('microsandbox').then(m => m.install())"
@@ -108,19 +115,22 @@ jobs:
       PI_REQUIRE_INTEGRATION: "1"
       TESTCONTAINERS_RYUK_DISABLED: "true"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: "20"
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
+          node-version: "22"
+      # No `version` input: pnpm/action-setup errors out when the version is given both
+      # here and as `packageManager` in package.json, which is the single source of truth.
+      - uses: pnpm/action-setup@v6
       - name: Verify /dev/kvm
         run: |
           test -e /dev/kvm || { echo "::error::/dev/kvm missing — this runner is not KVM-capable"; exit 1; }
           test -w /dev/kvm || { echo "::error::/dev/kvm not writable by the runner user (add it to the 'kvm' group)"; exit 1; }
           ls -l /dev/kvm
       - run: pnpm install --frozen-lockfile
+      # Same reason as the typecheck job: the @kvm suites import @pi-managed/* by package
+      # name, which resolves to the gitignored dist/.
+      - run: pnpm build
       - name: Verify msb native package installed
         run: ls node_modules/@superradcompany/
       - name: Bootstrap microsandbox runtime (idempotent)

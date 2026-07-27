@@ -55,7 +55,15 @@ export interface TenantCtx {
  * {@link closePool}.
  */
 export function createPool(config: PoolConfig): Pool {
-  return new pg.Pool(config);
+  const pool = new pg.Pool(config);
+  // `pg` emits `error` on IDLE pooled clients when the server drops them —
+  // a restart, a failover, or `pg_terminate_backend` (`57P01`). An `error` event with no
+  // listener is fatal to the Node process, so without this a routine Postgres restart
+  // takes the backend down with it. The pool discards the dead client on its own and
+  // stays usable, and an error on a CHECKED-OUT client still rejects that client's own
+  // query, so nothing is being swallowed that a caller would otherwise see.
+  pool.on("error", () => {});
+  return pool;
 }
 
 /**

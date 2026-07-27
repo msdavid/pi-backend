@@ -450,7 +450,7 @@ the start so neither shape is a retrofit.
   virtualization requires an Intel x86 machine type (Haswell+) with
   `enableNestedVirtualization` set — unavailable on ARM (T2A) — and carries a measurable
   performance tax vs bare metal.
-- **Runtime:** Node 20+.
+- **Runtime:** Node 22.19+ (floor set by the embedded Pi agent's `undici`).
 - **Dependencies:** Postgres (metadata, quotas, job records, webhook deliveries), an
   object store (filesystem in v1; S3-compatible or GCS for SaaS), the microsandbox runtime
   (`~/.microsandbox/` with libkrunfw + agentd).

@@ -10,7 +10,7 @@ runtime** — plus a Linux host with **KVM** for microVM isolation.
 | Requirement | Why | Notes |
 |---|---|---|
 | **Linux host with `/dev/kvm`** | microsandbox microVMs run via libkrunfw + KVM | The sandbox provider is inert without it. `@kvm`-gated tests skip cleanly when absent. |
-| **Node.js ≥ 20** | ESM service, `dist/main.js` entrypoint | Build with `pnpm --filter @pi-managed/backend build`. |
+| **Node.js ≥ 22.19** | ESM service, `dist/main.js` entrypoint | The floor is set by the embedded Pi agent's `undici` (`engines: >=22.19.0`), not by our own code. Build with `pnpm --filter @pi-managed/backend build`. |
 | **Postgres 16** | Control-plane DB (sessions, agents, environments, vaults, usage, …) | Migrations run **forward-only on boot** (`runMigrations(dbUrl, "up")`). |
 | **Object store** | File payloads, memory stores, snapshots, JSONL sync (§28) | **Local filesystem by default** (`OBJECT_STORE_ROOT` — point it at durable storage), or **Google Cloud Storage** via `OBJECT_STORE_KIND=gcs` + `GCS_BUCKET` (§2). An S3-compatible adapter also exists (`infra/objectstore/s3.ts`) but is composition-time only. |
 | **microsandbox runtime** | Provisiones/execs detached microVMs (§5.4, §10) | One-time `microsandbox` install bootstrap (§3 below). |
@@ -252,7 +252,7 @@ Runner prerequisites (infra work, outside this repo):
    intended fail-closed behavior (a placeholder that echoes and exits 0 is not).
 2. **Hardware virtualization**: bare metal, or a VM with nested virtualization enabled.
    `/dev/kvm` must exist and be writable by the runner user (add it to the `kvm` group).
-3. **Node ≥ 20 + pnpm** on `PATH`, and a **container runtime** (docker or podman) for the
+3. **Node ≥ 22.19 + pnpm** on `PATH`, and a **container runtime** (docker or podman) for the
    Postgres-backed halves of the E2E and credential-injection gates.
 4. **microsandbox bootstrap**: `node -e "import('microsandbox').then(m => m.install())"`
    (§3) populating `~/.microsandbox/`. The workflow re-runs this per job (idempotent), so

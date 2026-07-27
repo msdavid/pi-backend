@@ -37,7 +37,7 @@ all three roles — the layering still holds, they just switch hats (and keys).
 
 *Goal: a working backend on one Linux/KVM machine.*
 
-1. Provision a Linux host with `/dev/kvm`, Node ≥ 20, and Docker (or a managed
+1. Provision a Linux host with `/dev/kvm`, Node ≥ 22.19, and Docker (or a managed
    Postgres 16). The object store is a **local directory** by default — put it on
    durable disk.
 2. `pnpm install && pnpm build`; start the dependency (`docker compose up -d postgres`

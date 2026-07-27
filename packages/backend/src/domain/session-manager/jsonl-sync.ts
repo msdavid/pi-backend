@@ -202,8 +202,10 @@ function fileStream(path: string): ReadableStream<Uint8Array> {
   const nodeStream = createReadStream(path);
   return new ReadableStream<Uint8Array>({
     start(controller) {
-      nodeStream.on("data", (chunk: Buffer) => {
-        controller.enqueue(new Uint8Array(chunk));
+      // No encoding is set on the stream above, so chunks are always Buffer; `data`
+      // widens to string only for streams that set one.
+      nodeStream.on("data", (chunk: string | Buffer) => {
+        controller.enqueue(new Uint8Array(chunk as Buffer));
       });
       nodeStream.on("end", () => controller.close());
       nodeStream.on("error", (err) => controller.error(err));

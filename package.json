@@ -5,11 +5,11 @@
   "description": "Pi Managed Backend — a control plane around the Pi coding agent with microsandbox microVM execution.",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.19.0"
   },
   "packageManager": "pnpm@9.15.9",
   "scripts": {
-    "build": "pnpm -r build",
+    "build": "pnpm --filter '!@pi-managed/testkit' build && pnpm --filter @pi-managed/testkit build",
     "test": "pnpm -r test",
     "lint": "eslint .",
     "typecheck": "pnpm -r typecheck",
@@ -17,7 +17,7 @@
     "db:schema:check": "node scripts/gen-db-schema.mjs --check"
   },
   "devDependencies": {
-    "@types/node": "^26.1.1",
+    "@types/node": "^22.20.1",
     "eslint": "^10.7.0",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.9.5",
