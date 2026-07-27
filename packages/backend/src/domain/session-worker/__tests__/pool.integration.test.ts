@@ -264,7 +264,10 @@ d("session-worker process pool (R7.1)", () => {
     expect(rtB).toBeDefined();
     await rtB.sendEvent(userMessage("still alive?"));
     expect(await managed.eventsStore.head(sessionB)).toBeGreaterThan(headBBefore);
-    expect(rtB.status()).toBe("idle");
+    // `sendEvent` resolves once the event is accepted; the turn settles back to idle
+    // asynchronously after that, so poll rather than sampling once. A session that
+    // never leaves `running` still fails the assertion when `waitFor` times out.
+    expect(await waitFor(() => rtB.status() === "idle")).toBe(true);
   }, 60_000);
 
   it("(c) a killed child's session recovers (re-attach) on the next getOrCreate", async () => {
