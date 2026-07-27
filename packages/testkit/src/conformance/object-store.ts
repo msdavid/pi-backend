@@ -257,7 +257,10 @@ export function runObjectStoreConformance(
         const put = await store.put(key, byteStream(payload));
         const got = await readAll(await store.get(key));
         expect(got.byteLength).toBe(payload.byteLength);
-        expect(got).toEqual(payload);
+        // Same byte-exact guarantee as the small-payload case, but native: `toEqual`
+        // walks a multi-MiB typed array element by element, which cost ~2.4s of this
+        // suite's ~2.5s and timed out the 5s default on a shared CI runner.
+        expect(Buffer.compare(Buffer.from(got), Buffer.from(payload))).toBe(0);
         // ETag must be stable across reads of the same content: a conditional put
         // with the returned etag must succeed.
         const cp = await store.conditionalPut(
