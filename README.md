@@ -21,7 +21,7 @@ The service is **tailored for Pi** — it adapts the *concepts* of managed agent
 
 ### Prerequisites
 
-- **Node.js ≥ 20**
+- **Node.js ≥ 22.19** (the embedded Pi agent's `undici` requires it)
 - **pnpm** (`corepack enable` — the version is pinned via `packageManager` in `package.json`)
 - **Docker** (for the dev Postgres; the object store defaults to the local filesystem)
 - **Linux with `/dev/kvm`** (for real microVM sandboxes — macOS works for everything *except* sandbox execution)

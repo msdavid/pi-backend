@@ -26,7 +26,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "22"
       # No `version` input: pnpm/action-setup errors out when the version is given both
       # here and as `packageManager` in package.json, which is the single source of truth.
       - uses: pnpm/action-setup@v6
@@ -44,7 +44,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "22"
       # No `version` input: pnpm/action-setup errors out when the version is given both
       # here and as `packageManager` in package.json, which is the single source of truth.
       - uses: pnpm/action-setup@v6
@@ -70,7 +70,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "22"
       # No `version` input: pnpm/action-setup errors out when the version is given both
       # here and as `packageManager` in package.json, which is the single source of truth.
       - uses: pnpm/action-setup@v6
@@ -95,7 +95,7 @@ jobs:
   #     goes green) rather than passing vacuously — that is the intended fail-closed shape.
   #   * Linux host — bare metal, or a VM with NESTED VIRTUALIZATION enabled — exposing
   #     /dev/kvm, with the runner's user in the `kvm` group (/dev/kvm must be writable).
-  #   * Node.js >= 20 + pnpm on PATH; a container runtime (docker or podman) for the
+  #   * Node.js >= 22.19 + pnpm on PATH; a container runtime (docker or podman) for the
   #     Postgres-backed halves of the E2E and credential-injection gates.
   #   * microsandbox one-time bootstrap:
   #       node -e "import('microsandbox').then(m => m.install())"
@@ -118,7 +118,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "22"
       # No `version` input: pnpm/action-setup errors out when the version is given both
       # here and as `packageManager` in package.json, which is the single source of truth.
       - uses: pnpm/action-setup@v6

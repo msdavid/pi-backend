@@ -5,7 +5,7 @@
   "description": "Pi Managed Backend — a control plane around the Pi coding agent with microsandbox microVM execution.",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.19.0"
   },
   "packageManager": "pnpm@9.15.9",
   "scripts": {
